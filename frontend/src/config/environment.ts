@@ -5,6 +5,11 @@
  * easier to manage and update across different environments.
  */
 
+// Log environment variables during startup
+console.log('Loading environment configuration...');
+console.log('SUPABASE_URL env var:', process.env.REACT_APP_SUPABASE_URL);
+console.log('SUPABASE_ANON_KEY exists:', !!process.env.REACT_APP_SUPABASE_ANON_KEY);
+
 // API configuration
 export const API_CONFIG = {
   // Base URL for API requests
@@ -15,6 +20,12 @@ export const API_CONFIG = {
   
   // Whether to include credentials in cross-origin requests
   WITH_CREDENTIALS: true,
+};
+
+// Supabase configuration
+export const SUPABASE_CONFIG = {
+  URL: process.env.REACT_APP_SUPABASE_URL || 'https://uqjlcpdltjvljwisxmpn.supabase.co',
+  ANON_KEY: process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxamxjcGRsdGp2bGp3aXN4bXBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcxNjE1MDIsImV4cCI6MjA2MjczNzUwMn0.0EGRMgS9V7nyXBEpcjH7TU4Dx0PHjblBHs91clqfb_Q',
 };
 
 // App configuration
@@ -33,6 +44,9 @@ export const APP_CONFIG = {
   
   // Allowed file types (empty array means all types allowed)
   ALLOWED_FILE_TYPES: [],
+  
+  // File size limit in bytes (50MB)
+  FILE_SIZE_LIMIT: 50 * 1024 * 1024,
 };
 
 // Feature flags
@@ -59,6 +73,7 @@ export const STORAGE_KEYS = {
 
 const environmentConfig = {
   API_CONFIG,
+  SUPABASE_CONFIG,
   APP_CONFIG,
   FEATURES,
   STORAGE_KEYS,

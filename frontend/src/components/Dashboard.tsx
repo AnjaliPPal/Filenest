@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { getUserRequests, getRequestFiles, downloadAllFiles } from '../services/api';
 import { FileRequest, UploadedFile } from '../types';
+import axios from 'axios';
+import { API_CONFIG } from '../config/environment';
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -32,7 +34,58 @@ const Dashboard: React.FC = () => {
         const email = user?.email || userEmail;
         if (!email) return;
         
+        // Make a direct API call to see the raw response
+        console.log('Making API request with email:', email);
+        
+        try {
+          // First try the direct axios call to debug
+          const directResponse = await axios.get(`${API_CONFIG.BASE_URL}/requests/user/${email}`);
+          console.log('Direct API response:', directResponse.data);
+          
+          if (directResponse.data && Array.isArray(directResponse.data) && directResponse.data.length > 0) {
+            // Use the direct response data if it looks valid
+            const responseData = directResponse.data;
+            console.log('Using direct response data:', responseData);
+            
+            // Initialize files from the direct response
+            const initialFiles: { [requestId: string]: UploadedFile[] } = {};
+            responseData.forEach(request => {
+              if (request.uploaded_files && Array.isArray(request.uploaded_files)) {
+                initialFiles[request.id] = request.uploaded_files;
+              }
+            });
+            
+            if (Object.keys(initialFiles).length > 0) {
+              console.log('Initialized files state with:', initialFiles);
+              setFiles(initialFiles);
+            }
+            
+            setRequests(responseData);
+            setLoading(false);
+            return; // Exit early since we've handled the data
+          }
+        } catch (directError) {
+          console.error('Error with direct API call:', directError);
+          // Fall back to the standard API method if direct call fails
+        }
+        
+        // If direct call didn't work, fall back to standard method
         const data = await getUserRequests(email);
+        console.log('Standard API call response:', data);
+        
+        // Initialize files state with any existing uploaded_files
+        const initialFiles: { [requestId: string]: UploadedFile[] } = {};
+        data.forEach(request => {
+          if (request.uploaded_files && Array.isArray(request.uploaded_files) && request.uploaded_files.length > 0) {
+            initialFiles[request.id] = request.uploaded_files;
+          }
+        });
+        
+        if (Object.keys(initialFiles).length > 0) {
+          console.log('Preloaded files from requests:', initialFiles);
+          setFiles(initialFiles);
+        }
+        
         setRequests(data);
         setLoading(false);
       } catch (err) {
@@ -53,43 +106,116 @@ const Dashboard: React.FC = () => {
     }
     
     setExpandedRequest(requestId);
+    console.log('Toggle request:', requestId, 'Current files state:', files);
     
     if (!files[requestId]) {
       try {
-        const fileData = await getRequestFiles(requestId);
-        console.log('Fetched files for request:', requestId, fileData); // Log the fetched files
-        setFiles(prev => ({
-          ...prev,
-          [requestId]: fileData
-        }));
+        // Check if we already have files in the request object
+        const request = requests.find(req => req.id === requestId);
+        console.log('Found request:', request);
+        
+        // First check if request exists, then check uploaded_files
+        if (request && request.uploaded_files && request.uploaded_files.length > 0) {
+          // Cast to UploadedFile[] to ensure type safety
+          const uploadedFiles: UploadedFile[] = request.uploaded_files;
+          console.log('Using embedded files for request:', requestId, uploadedFiles);
+          setFiles(prev => {
+            const updated = {
+              ...prev,
+              [requestId]: uploadedFiles
+            };
+            console.log('Updated files state:', updated);
+            return updated;
+          });
+        } else {
+          // Fetch files if not available in the request
+          console.log('Fetching files from API for request:', requestId);
+          const fileData = await getRequestFiles(requestId);
+          console.log('Fetched files for request:', requestId, fileData);
+          setFiles(prev => {
+            const updated = {
+              ...prev,
+              [requestId]: fileData
+            };
+            console.log('Updated files state after API fetch:', updated);
+            return updated;
+          });
+        }
       } catch (err) {
         console.error(`Failed to load files for request ${requestId}:`, err);
       }
+    } else {
+      console.log('Using cached files for request:', requestId, files[requestId]);
     }
   };
   
-  // Handle file download (all files for a request)
+  // Handle file download (all files for a request as a single ZIP)
   const handleDownloadAll = async (requestId: string) => {
     try {
       setDownloadingRequestId(requestId);
-      const downloadUrls = await downloadAllFiles(requestId);
       
-      // For each URL, create a download link and click it
-      downloadUrls.forEach(item => {
-        if (item.download_url) {
-          const link = document.createElement('a');
-          link.href = item.download_url;
-          link.setAttribute('download', item.filename || 'download');
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        }
+      // Get the current request details for a better filename
+      const request = requests.find(req => req.id === requestId);
+      const filenameBase = request?.description
+        ? request.description.replace(/[^a-z0-9]/gi, '_').substring(0, 30)
+        : `request_${requestId.substring(0, 8)}`;
+      
+      // Request a ZIP file containing all files for this request
+      const response = await axios.get(`${API_CONFIG.BASE_URL}/files/download-zip/${requestId}`, {
+        responseType: 'blob'
       });
+      
+      // Create a download from the blob response
+      const blob = new Blob([response.data], { type: 'application/zip' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${filenameBase}_files.zip`);
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      setTimeout(() => {
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      }, 100);
       
       setDownloadingRequestId(null);
     } catch (err) {
-      console.error('Failed to download files:', err);
+      console.error('Failed to download ZIP file:', err);
+      setError('Failed to download files. Please try again.');
       setDownloadingRequestId(null);
+    }
+  };
+  
+  // Handle individual file download
+  const handleDownloadFile = async (fileId: string, filename: string) => {
+    try {
+      console.log('Requesting download URL for file:', fileId);
+      
+      // Make direct API call instead of using the potentially missing function
+      const response = await axios.get(`${API_CONFIG.BASE_URL}/files/download/${fileId}`);
+      console.log('Received download URL:', response.data);
+      
+      if (response.data && response.data.download_url) {
+        console.log('Downloading file:', filename);
+        const link = document.createElement('a');
+        link.href = response.data.download_url;
+        link.setAttribute('download', filename || 'download');
+        document.body.appendChild(link);
+        link.click();
+        
+        // Small timeout to ensure download starts before removing the link
+        setTimeout(() => {
+          document.body.removeChild(link);
+        }, 100);
+      } else {
+        console.error('Missing download URL for file:', fileId);
+        setError('Failed to get download URL for file');
+      }
+    } catch (err) {
+      console.error('Failed to download file:', err);
+      setError('Failed to download file. Please try again.');
     }
   };
   
@@ -256,12 +382,10 @@ const Dashboard: React.FC = () => {
                   
                   {/* Expanded file list */}
                   {expandedRequest === request.id && (
-                    console.log(files[request.id]),
-  
                     <div className="border-t border-gray-200 px-4 py-5 sm:px-6 bg-gray-50">
                       <div className="mb-4 flex justify-between items-center">
                         <h3 className="text-lg leading-6 font-medium text-gray-900">
-                          Files
+                          Files {files[request.id] ? `(${files[request.id].length})` : ''}
                         </h3>
                         {(files[request.id]?.length > 0) && (
                           <button
@@ -334,7 +458,7 @@ const Dashboard: React.FC = () => {
                                       <td className="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-0">
                                         <button
                                           className="text-blue-600 hover:text-blue-900"
-                                          // Individual file download would go here
+                                          onClick={() => handleDownloadFile(file.id, file.filename)}
                                         >
                                           Download
                                         </button>

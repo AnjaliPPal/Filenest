@@ -57,6 +57,8 @@ const UploadPage: React.FC = () => {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorModalMessage, setErrorModalMessage] = useState('');
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [success, setSuccess] = useState(false);
@@ -102,6 +104,16 @@ const UploadPage: React.FC = () => {
     return { valid: true };
   };
 
+  const handleFileValidationError = (message: string) => {
+    setErrorModalMessage(message);
+    setShowErrorModal(true);
+  };
+
+  const closeErrorModal = () => {
+    setShowErrorModal(false);
+    setErrorModalMessage('');
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const files = Array.from(e.target.files);
@@ -114,7 +126,7 @@ const UploadPage: React.FC = () => {
           validFiles.push(file);
         } else {
           hasError = true;
-          setFileError(message || 'Invalid file');
+          if (message) handleFileValidationError(message);
         }
       });
       
@@ -159,7 +171,7 @@ const UploadPage: React.FC = () => {
           validFiles.push(file);
         } else {
           hasError = true;
-          setFileError(message || 'Invalid file');
+          if (message) handleFileValidationError(message);
         }
       });
       
@@ -218,6 +230,34 @@ const UploadPage: React.FC = () => {
 
   return (
     <div className="max-w-3xl mx-auto mt-8 p-8 bg-white rounded-lg shadow-md">
+      {/* Error Modal */}
+      {showErrorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-start mb-4">
+              <div className="flex-shrink-0 bg-red-100 rounded-full p-2">
+                <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className="text-lg font-medium text-gray-900">File Error</h3>
+                <p className="mt-2 text-sm text-gray-500">{errorModalMessage}</p>
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={closeErrorModal}
+                className="inline-flex justify-center rounded-md border border-transparent bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 focus:outline-none"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header with request details */}
       <div className="bg-blue-600 p-6 text-white rounded-t-lg">
         <h1 className="text-2xl font-bold mb-2">File Upload Requested</h1>

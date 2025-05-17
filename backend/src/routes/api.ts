@@ -10,7 +10,8 @@ import {
   uploadFile, 
   getRequestFiles, 
   downloadFile, 
-  downloadAllFiles 
+  downloadAllFiles,
+  downloadZipFile
 } from '../controllers/fileController';
 
 const router = express.Router();
@@ -29,8 +30,10 @@ router.get('/requests/user/:email', getUserRequests);
 
 // File routes
 router.post('/files/:requestId', upload.single('file'), uploadFile);
+router.post('/files/:requestId/batch', upload.array('files'), uploadFile);
 router.get('/files/:requestId', getRequestFiles);
 router.get('/files/download/:fileId', downloadFile);
 router.get('/files/download-all/:requestId', downloadAllFiles);
+router.get('/files/download-zip/:requestId', downloadZipFile);
 
 export default router;

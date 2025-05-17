@@ -4,11 +4,11 @@ import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
 import { CreateRequestInput } from '../types';
 import { sendNotificationEmail } from '../utils/email';
+import { nanoid } from 'nanoid';
 
 // Create a new file request
 export const createRequest = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { nanoid } = await import('nanoid'); 
     const { email, description, deadline, expiry_days = 7 }: CreateRequestInput = req.body;
 
     if (!email || !description) {
@@ -39,6 +39,7 @@ export const createRequest = async (req: Request, res: Response): Promise<void> 
 
     // Generate unique link and expiry date
     const unique_link = nanoid(12);
+    
     const expires_at = new Date();
     expires_at.setDate(expires_at.getDate() + expiry_days);
 
@@ -77,6 +78,7 @@ export const createRequest = async (req: Request, res: Response): Promise<void> 
 // Get file request by unique link
 export const getRequestByLink = async (req: Request, res: Response): Promise<void> => {
   try {
+    console.log('Get request by link:', req.params);
     const { link } = req.params;
 
     if (!link) {
@@ -90,6 +92,8 @@ export const getRequestByLink = async (req: Request, res: Response): Promise<voi
       .eq('unique_link', link)
       .eq('is_active', true)
       .single();
+
+    console.log('Request lookup result:', { request, error });
 
     if (error || !request) {
       res.status(404).json({ error: 'File request not found or expired' });
@@ -109,7 +113,7 @@ export const getRequestByLink = async (req: Request, res: Response): Promise<voi
     });
   } catch (error) {
     console.error('Get request error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal server error: ' + (error instanceof Error ? error.message : String(error)) });
   }
 };
 
