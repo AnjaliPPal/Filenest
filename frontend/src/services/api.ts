@@ -41,6 +41,8 @@ export interface FileUploadResponse {
 }
 
 export interface FileDownloadResponse {
+  id: string;
+  filename: string;
   download_url: string;
 }
 
@@ -100,14 +102,14 @@ export const getUserRequests = async (email: string): Promise<FileRequest[]> => 
 
 export const uploadFile = async (requestId: string, file: File): Promise<FileUploadResponse> => {
   try {
-    const formData = new FormData();
-    formData.append('file', file);
-    
+  const formData = new FormData();
+  formData.append('file', file);
+  
     const response = await api.post<FileUploadResponse>(`/files/${requestId}`, formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
     
     return response.data;
   } catch (error) {

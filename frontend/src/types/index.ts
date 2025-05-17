@@ -65,5 +65,7 @@ export interface User {
   }
   
   export interface FileDownloadResponse {
+    id: string;
+    filename: string;
     download_url: string;
   }

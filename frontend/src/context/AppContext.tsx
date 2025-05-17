@@ -1,10 +1,18 @@
-import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useEffect } from 'react';
 import { FileRequest, CreateRequestInput } from '../types';
 import { createFileRequest, getUserRequests } from '../services/api';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+// Import Firebase auth services
+import { User as FirebaseUser } from 'firebase/auth';
+import { 
+  signInWithGoogle as firebaseSignInWithGoogle,
+  logoutUser as firebaseLogoutUser,
+  subscribeToAuthChanges
+} from '../services/authService';
 
 interface AppContextState {
   userEmail: string | null;
+  user: FirebaseUser | null;
   requests: FileRequest[];
   isLoading: boolean;
   error: string | null;
@@ -15,7 +23,8 @@ interface AppContextValue extends AppContextState {
   createRequest: (data: CreateRequestInput) => Promise<{ success: boolean; link?: string; error?: string }>;
   fetchUserRequests: (email: string) => Promise<void>;
   clearError: () => void;
-  logout: () => void;
+  logout: () => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | undefined>(undefined);
@@ -24,10 +33,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Use our custom hook for localStorage
   const [userEmail, setUserEmailStorage] = useLocalStorage<string | null>('userEmail', null);
   
+  // Auth state
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  
   // Other state that doesn't need to persist
   const [requests, setRequests] = useState<FileRequest[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Initialize auth state
+  useEffect(() => {
+    // Set up auth state listener
+    const unsubscribe = subscribeToAuthChanges((currentUser) => {
+      setUser(currentUser);
+      if (currentUser?.email) {
+        setUserEmailStorage(currentUser.email);
+      }
+    });
+
+    // Clean up subscription
+    return () => {
+      unsubscribe();
+    };
+  }, [setUserEmailStorage]);
 
   const setUserEmail = useCallback((email: string) => {
     setUserEmailStorage(email);
@@ -84,13 +112,41 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setError(null);
   }, []);
   
-  const logout = useCallback(() => {
-    setUserEmailStorage(null);
-    setRequests([]);
+  const logout = useCallback(async () => {
+    try {
+      await firebaseLogoutUser();
+      setUserEmailStorage(null);
+      setRequests([]);
+      setUser(null);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
   }, [setUserEmailStorage]);
+
+  const loginWithGoogle = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      console.log('Starting Google login process with Firebase...');
+      
+      const user = await firebaseSignInWithGoogle();
+      console.log('Firebase sign in successful:', !!user);
+      
+      if (user?.email) {
+        setUserEmail(user.email);
+      }
+      
+      setIsLoading(false);
+    } catch (error) {
+      setIsLoading(false);
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred';
+      setError(errorMessage);
+      console.error('Exception during Google sign in:', error);
+    }
+  }, [setUserEmail]);
 
   const value = {
     userEmail,
+    user,
     requests,
     isLoading,
     error,
@@ -98,7 +154,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     createRequest,
     fetchUserRequests,
     clearError,
-    logout
+    logout,
+    loginWithGoogle
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
