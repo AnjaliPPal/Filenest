@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
-import { useParams } from 'react-router-dom';
-import { uploadFileToRequest } from '../services/api';
+import React, { useState, useRef, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { uploadFileToRequest, getFileRequestByLink } from '../services/api';
 import { AxiosProgressEvent } from 'axios';
+import axios from 'axios';
 
 // Import directly to bypass TypeScript checking for JS imports
 // @ts-ignore
@@ -54,6 +55,8 @@ const getFileIcon = (fileType: string): string => {
 
 const UploadPage: React.FC = () => {
   const { requestId } = useParams<{ requestId: string }>();
+  const navigate = useNavigate();
+  
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -66,23 +69,41 @@ const UploadPage: React.FC = () => {
   const [requestDetails, setRequestDetails] = useState<{
     description: string;
     deadline?: string;
+    expires_at: string;
+    is_active: boolean;
   } | null>(null);
+  const [isExpired, setIsExpired] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch request details (optional)
-  React.useEffect(() => {
-    if (requestId) {
-      // Uncomment this to fetch request details from your API
-      /*
-      axios.get(`${API_BASE_URL}/requests/${requestId}`)
-        .then(response => {
-          setRequestDetails(response.data.request);
-        })
-        .catch(err => {
-          console.error("Failed to fetch request details", err);
-        });
-      */
-    }
+  // Fetch request details and check expiry
+  useEffect(() => {
+    const fetchRequestDetails = async () => {
+      if (!requestId) return;
+      
+      try {
+        setIsLoading(true);
+        const response = await getFileRequestByLink(requestId);
+        
+        setRequestDetails(response);
+        
+        // Check if request is expired
+        const now = new Date();
+        const expiryDate = new Date(response.expires_at);
+        
+        if (now > expiryDate || !response.is_active) {
+          setIsExpired(true);
+        }
+        
+        setIsLoading(false);
+      } catch (err) {
+        console.error("Failed to fetch request details", err);
+        setError("This upload link is invalid or has been removed.");
+        setIsLoading(false);
+      }
+    };
+    
+    fetchRequestDetails();
   }, [requestId]);
 
   const validateFile = (file: File): { valid: boolean; message?: string } => {
@@ -228,6 +249,48 @@ const UploadPage: React.FC = () => {
     }
   };
 
+  // Render expired view
+  const renderExpiredView = () => (
+    <div className="text-center py-10">
+      <div className="bg-red-100 text-red-800 p-4 rounded-lg inline-flex items-center mb-6">
+        <svg className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <span className="font-medium">This upload link has expired</span>
+      </div>
+      <p className="text-gray-600 mb-6 max-w-md mx-auto">
+        This file upload link is no longer active. It may have expired or been disabled by the requestor.
+      </p>
+      <button
+        onClick={() => navigate('/')}
+        className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+      >
+        Return Home
+      </button>
+    </div>
+  );
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="max-w-3xl mx-auto mt-8 p-8 bg-white rounded-lg shadow-md flex justify-center items-center py-16">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+          <p className="text-gray-600">Loading upload page...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show expired view
+  if (isExpired) {
+    return (
+      <div className="max-w-3xl mx-auto mt-8 p-8 bg-white rounded-lg shadow-md">
+        {renderExpiredView()}
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl mx-auto mt-8 p-8 bg-white rounded-lg shadow-md">
       {/* Error Modal */}
@@ -272,6 +335,12 @@ const UploadPage: React.FC = () => {
                 Due by: {new Date(requestDetails.deadline).toLocaleDateString()}
               </div>
             )}
+            <div className="mt-2 inline-flex items-center bg-blue-700 px-3 py-1 rounded-md text-sm ml-2">
+              <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Expires: {new Date(requestDetails.expires_at).toLocaleDateString()}
+            </div>
           </>
         ) : (
           <p className="text-blue-100 mb-3">Please upload your files for this request.</p>

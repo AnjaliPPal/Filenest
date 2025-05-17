@@ -3,7 +3,7 @@ import { Request, Response } from 'express';
 
 import { supabase } from '../config/supabase';
 import { CreateRequestInput } from '../types';
-import { sendNotificationEmail } from '../utils/email';
+import { sendUploadNotification } from '../utils/email';
 import { nanoid } from 'nanoid';
 
 // Create a new file request

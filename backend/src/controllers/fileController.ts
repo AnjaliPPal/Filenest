@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
-// import { sendNotificationEmail } from '../utils/email';
+import { sendUploadNotification } from '../utils/email';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import archiver from 'archiver';
@@ -57,6 +57,9 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
       return;
     }
 
+    // Array to store uploaded files for email notification
+    const uploadedFiles = [];
+
     // Process single file
     if (req.file) {
       const fileExtension = path.extname(req.file.originalname);
@@ -103,10 +106,27 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
           return;
         }
 
+        uploadedFiles.push(fileData);
+
         await supabase
           .from('file_requests')
           .update({ status: 'completed' })
           .eq('id', request.id);
+
+        // Send email notification after successful upload
+        if (request.users && request.users.email) {
+          try {
+            await sendUploadNotification(
+              request.users.email,
+              request.description,
+              [fileData],
+              request.id
+            );
+          } catch (emailErr) {
+            console.error('Failed to send email notification:', emailErr);
+            // Continue even if email fails
+          }
+        }
 
         res.status(201).json({
           message: 'File uploaded successfully',
@@ -176,6 +196,7 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
               fileId: fileData.id,
               success: true
             });
+            uploadedFiles.push(fileData);
           }
         } catch (err) {
           console.error('Error processing file:', file.originalname, err);
@@ -187,12 +208,27 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
         }
       }
       
-      // Update request status
+      // Update request status if any files were uploaded successfully
       if (uploadResults.some(result => result.success)) {
         await supabase
           .from('file_requests')
           .update({ status: 'completed' })
           .eq('id', request.id);
+        
+        // Send email notification after successful batch upload
+        if (uploadedFiles.length > 0 && request.users && request.users.email) {
+          try {
+            await sendUploadNotification(
+              request.users.email,
+              request.description,
+              uploadedFiles,
+              request.id
+            );
+          } catch (emailErr) {
+            console.error('Failed to send email notification:', emailErr);
+            // Continue even if email fails
+          }
+        }
       }
       
       res.status(200).json({
