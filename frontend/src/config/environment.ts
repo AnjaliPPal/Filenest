@@ -5,36 +5,54 @@
  * easier to manage and update across different environments.
  */
 
-// Log environment variables during startup
-console.log('Loading environment configuration...');
-console.log('SUPABASE_URL env var:', process.env.REACT_APP_SUPABASE_URL);
-console.log('SUPABASE_ANON_KEY exists:', !!process.env.REACT_APP_SUPABASE_ANON_KEY);
+// Determine environment
+const isProd = process.env.NODE_ENV === 'production';
+const isDev = process.env.NODE_ENV === 'development';
+
+// Security configuration
+export const SECURITY_CONFIG = {
+  // CSRF protection - enabled in production
+  CSRF_ENABLED: isProd,
+  // Cookie settings for enhanced security
+  COOKIE_SECURE: isProd,
+  COOKIE_SAME_SITE: isProd ? 'strict' : 'lax',
+  // Content Security Policy headers
+  CSP_ENABLED: isProd,
+};
+
+// Environment configuration
+const config = {
+  SUPABASE_URL: process.env.REACT_APP_SUPABASE_URL || '',
+  SUPABASE_ANON_KEY: process.env.REACT_APP_SUPABASE_ANON_KEY || '',
+  API_URL: process.env.REACT_APP_API_URL || 'http://localhost:3001/api',
+  FRONTEND_URL: process.env.REACT_APP_FRONTEND_URL || 'http://localhost:3000'
+};
 
 // API configuration
 export const API_CONFIG = {
-  // Base URL for API requests
-  BASE_URL: process.env.REACT_APP_API_URL || 'http://localhost:3001/api',
-  
-  // Default timeout for API requests (in milliseconds)
+  BASE_URL: config.API_URL,
   TIMEOUT: 30000,
-  
-  // Whether to include credentials in cross-origin requests
   WITH_CREDENTIALS: true,
+  RETRY_COUNT: 3,
+  RETRY_DELAY: 1000, // 1 second
+  FRONTEND_URL: config.FRONTEND_URL
 };
 
 // Supabase configuration
 export const SUPABASE_CONFIG = {
-  URL: process.env.REACT_APP_SUPABASE_URL || 'https://uqjlcpdltjvljwisxmpn.supabase.co',
-  ANON_KEY: process.env.REACT_APP_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxamxjcGRsdGp2bGp3aXN4bXBuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDcxNjE1MDIsImV4cCI6MjA2MjczNzUwMn0.0EGRMgS9V7nyXBEpcjH7TU4Dx0PHjblBHs91clqfb_Q',
+  URL: config.SUPABASE_URL,
+  ANON_KEY: config.SUPABASE_ANON_KEY,
 };
+
+// NEVER include hardcoded API keys in client-side code in production
+if (isProd && (!process.env.REACT_APP_SUPABASE_URL || !process.env.REACT_APP_SUPABASE_ANON_KEY)) {
+  console.error('Missing required Supabase environment variables in production');
+}
 
 // App configuration
 export const APP_CONFIG = {
   // Application name
   APP_NAME: 'FileNest',
-  
-  // Frontend URL
-  FRONTEND_URL: process.env.REACT_APP_FRONTEND_URL || 'http://localhost:3000',
   
   // Default file request expiry days
   DEFAULT_EXPIRY_DAYS: 7,
@@ -61,7 +79,7 @@ export const FEATURES = {
   REMINDERS: false,
   
   // Whether analytics are enabled (tracking of file uploads, etc.)
-  ANALYTICS: false,
+  ANALYTICS: isProd && process.env.REACT_APP_ENABLE_ANALYTICS === 'true',
 };
 
 // Local storage keys
@@ -77,6 +95,7 @@ const environmentConfig = {
   APP_CONFIG,
   FEATURES,
   STORAGE_KEYS,
+  SECURITY_CONFIG,
 };
 
 export default environmentConfig; 

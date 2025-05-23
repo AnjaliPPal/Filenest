@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
 import { getUserRequests, getRequestFiles, downloadAllFiles } from '../services/api';
@@ -24,79 +24,71 @@ const Dashboard: React.FC = () => {
     }
   }, [user, userEmail, contextLoading, navigate]);
   
-  // Fetch all requests for the user
-  useEffect(() => {
-    const fetchRequests = async () => {
-      if (!userEmail && !user?.email) return;
+  // Main data fetching function
+  const fetchRequests = useCallback(async (email: string, forceRefresh: boolean = false) => {
+    if (!email) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Try the new context method first with direct response
+      const directResponse = await getUserRequests(email);
       
-      try {
-        setLoading(true);
-        const email = user?.email || userEmail;
-        if (!email) return;
+      if (directResponse) {
+        // Handle response from getUserRequests which might return just the array
+        const responseData = Array.isArray(directResponse) ? directResponse : directResponse.requests || directResponse;
         
-        // Make a direct API call to see the raw response
-        console.log('Making API request with email:', email);
+        setRequests(responseData);
         
-        try {
-          // First try the direct axios call to debug
-          const directResponse = await axios.get(`${API_CONFIG.BASE_URL}/requests/user/${email}`);
-          console.log('Direct API response:', directResponse.data);
-          
-          if (directResponse.data && Array.isArray(directResponse.data) && directResponse.data.length > 0) {
-            // Use the direct response data if it looks valid
-            const responseData = directResponse.data;
-            console.log('Using direct response data:', responseData);
-            
-            // Initialize files from the direct response
-            const initialFiles: { [requestId: string]: UploadedFile[] } = {};
-            responseData.forEach(request => {
-              if (request.uploaded_files && Array.isArray(request.uploaded_files)) {
-                initialFiles[request.id] = request.uploaded_files;
-              }
-            });
-            
-            if (Object.keys(initialFiles).length > 0) {
-              console.log('Initialized files state with:', initialFiles);
-              setFiles(initialFiles);
-            }
-            
-            setRequests(responseData);
-            setLoading(false);
-            return; // Exit early since we've handled the data
-          }
-        } catch (directError) {
-          console.error('Error with direct API call:', directError);
-          // Fall back to the standard API method if direct call fails
-        }
-        
-        // If direct call didn't work, fall back to standard method
-        const data = await getUserRequests(email);
-        console.log('Standard API call response:', data);
-        
-        // Initialize files state with any existing uploaded_files
+        // Pre-load files state with files from requests
         const initialFiles: { [requestId: string]: UploadedFile[] } = {};
-        data.forEach(request => {
-          if (request.uploaded_files && Array.isArray(request.uploaded_files) && request.uploaded_files.length > 0) {
+        responseData.forEach((request: FileRequest) => {
+          if (request.uploaded_files && Array.isArray(request.uploaded_files)) {
             initialFiles[request.id] = request.uploaded_files;
           }
         });
         
-        if (Object.keys(initialFiles).length > 0) {
-          console.log('Preloaded files from requests:', initialFiles);
-          setFiles(initialFiles);
-        }
+        setFiles(initialFiles);
         
-        setRequests(data);
         setLoading(false);
-      } catch (err) {
-        console.error('Failed to load requests:', err);
-        setError('Failed to load your file requests. Please try again.');
+        return;
+      }
+    } catch (error) {
+      // If the new method fails, try the old method
+      try {
+        const response = await axios.get(`${API_CONFIG.BASE_URL}/requests/user/${email}`);
+        const data = response.data;
+        
+        const requestsData = data.requests || [];
+        setRequests(requestsData);
+        
+        // Pre-load files state with files from requests
+        const initialFiles: { [requestId: string]: UploadedFile[] } = {};
+        requestsData.forEach((request: FileRequest) => {
+          if (request.uploaded_files && Array.isArray(request.uploaded_files)) {
+            initialFiles[request.id] = request.uploaded_files;
+          }
+        });
+        
+        setFiles(initialFiles);
+        
+        setLoading(false);
+        return;
+      } catch (secondError) {
+        setError('Failed to load your requests. Please try again.');
         setLoading(false);
       }
-    };
-    
-    fetchRequests();
-  }, [userEmail, user]);
+    }
+  }, []);
+  
+  // Add fetchRequests effect after defining the function
+  useEffect(() => {
+    const email = user?.email || userEmail;
+    if (email) {
+      fetchRequests(email);
+    }
+  }, [userEmail, user, fetchRequests]);
   
   // Fetch files for a request when expanded
   const handleToggleRequest = async (requestId: string) => {
@@ -106,46 +98,29 @@ const Dashboard: React.FC = () => {
     }
     
     setExpandedRequest(requestId);
-    console.log('Toggle request:', requestId, 'Current files state:', files);
     
-    if (!files[requestId]) {
-      try {
-        // Check if we already have files in the request object
-        const request = requests.find(req => req.id === requestId);
-        console.log('Found request:', request);
-        
-        // First check if request exists, then check uploaded_files
-        if (request && request.uploaded_files && request.uploaded_files.length > 0) {
-          // Cast to UploadedFile[] to ensure type safety
-          const uploadedFiles: UploadedFile[] = request.uploaded_files;
-          console.log('Using embedded files for request:', requestId, uploadedFiles);
-          setFiles(prev => {
-            const updated = {
-              ...prev,
-              [requestId]: uploadedFiles
-            };
-            console.log('Updated files state:', updated);
-            return updated;
-          });
-        } else {
-          // Fetch files if not available in the request
-          console.log('Fetching files from API for request:', requestId);
-          const fileData = await getRequestFiles(requestId);
-          console.log('Fetched files for request:', requestId, fileData);
-          setFiles(prev => {
-            const updated = {
-              ...prev,
-              [requestId]: fileData
-            };
-            console.log('Updated files state after API fetch:', updated);
-            return updated;
-          });
-        }
-      } catch (err) {
-        console.error(`Failed to load files for request ${requestId}:`, err);
-      }
+    // Check if we already have files for this request
+    if (files[requestId] && files[requestId].length > 0) {
+      return; // Already have files, no need to fetch
+    }
+    
+    // Find the request to check for embedded files
+    const request = requests.find(r => r.id === requestId);
+    
+    if (request && request.uploaded_files && Array.isArray(request.uploaded_files) && request.uploaded_files.length > 0) {
+      // Use embedded files if available
+      const uploadedFiles = request.uploaded_files;
+      const updated = { ...files, [requestId]: uploadedFiles };
+      setFiles(updated);
     } else {
-      console.log('Using cached files for request:', requestId, files[requestId]);
+      // Fetch files from API
+      try {
+        const fileData = await getRequestFiles(requestId);
+        const updated = { ...files, [requestId]: fileData };
+        setFiles(updated);
+      } catch (error) {
+        console.error('Error fetching files:', error);
+      }
     }
   };
   
@@ -188,33 +163,22 @@ const Dashboard: React.FC = () => {
     }
   };
   
-  // Handle individual file download
+  // Download a single file
   const handleDownloadFile = async (fileId: string, filename: string) => {
     try {
-      console.log('Requesting download URL for file:', fileId);
+      // Get download URL from backend
+      const response = await axios.get(`${API_CONFIG.BASE_URL}/downloads/${fileId}`);
       
-      // Make direct API call instead of using the potentially missing function
-      const response = await axios.get(`${API_CONFIG.BASE_URL}/files/download/${fileId}`);
-      console.log('Received download URL:', response.data);
-      
-      if (response.data && response.data.download_url) {
-        console.log('Downloading file:', filename);
-        const link = document.createElement('a');
-        link.href = response.data.download_url;
-        link.setAttribute('download', filename || 'download');
-        document.body.appendChild(link);
-        link.click();
-        
-        // Small timeout to ensure download starts before removing the link
-        setTimeout(() => {
-          document.body.removeChild(link);
-        }, 100);
-      } else {
-        console.error('Missing download URL for file:', fileId);
-        setError('Failed to get download URL for file');
-      }
-    } catch (err) {
-      console.error('Failed to download file:', err);
+      // Create a temporary link and click it to download
+      const downloadUrl = response.data.url;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error downloading file:', error);
       setError('Failed to download file. Please try again.');
     }
   };

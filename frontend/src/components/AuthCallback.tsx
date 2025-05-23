@@ -10,15 +10,8 @@ const AuthCallback: React.FC = () => {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        console.log('Auth callback page loaded');
         // Check for the auth callback in the URL
         const { data: authData, error: authError } = await supabase.auth.getSession();
-        
-        console.log('Auth callback session result:', { 
-          hasData: !!authData, 
-          hasError: !!authError,
-          hasSession: !!authData?.session
-        });
         
         if (authError) {
           console.error('Auth callback error:', authError);
@@ -28,7 +21,6 @@ const AuthCallback: React.FC = () => {
         
         if (authData.session) {
           // Successfully authenticated
-          console.log('Authentication successful, user:', authData.session.user.email);
           
           if (authData.session.user.email) {
             setUserEmail(authData.session.user.email);
@@ -37,7 +29,6 @@ const AuthCallback: React.FC = () => {
           navigate('/dashboard');
         } else {
           // No session found
-          console.log('No session found in auth callback');
           navigate('/login');
         }
       } catch (error) {

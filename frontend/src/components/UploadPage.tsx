@@ -1,12 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { uploadFileToRequest, getFileRequestByLink } from '../services/api';
+import { uploadFilesToRequest, getFileRequestByLink } from '../services/api.js';
 import { AxiosProgressEvent } from 'axios';
 import axios from 'axios';
-
-// Import directly to bypass TypeScript checking for JS imports
-// @ts-ignore
-import { uploadFilesToRequest as uploadMultipleFiles } from '../services/api';
 
 // Configure API base URL from environment or use default
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001/api';
@@ -76,33 +72,34 @@ const UploadPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Function to fetch request details - moved outside useEffect so it can be reused
+  const fetchRequestDetails = async () => {
+    if (!requestId) return;
+    
+    try {
+      setIsLoading(true);
+      const response = await getFileRequestByLink(requestId);
+      
+      setRequestDetails(response);
+      
+      // Check if request is expired
+      const now = new Date();
+      const expiryDate = new Date(response.expires_at);
+      
+      if (now > expiryDate || !response.is_active) {
+        setIsExpired(true);
+      }
+      
+      setIsLoading(false);
+    } catch (err) {
+      console.error("Failed to fetch request details", err);
+      setError("This upload link is invalid or has been removed.");
+      setIsLoading(false);
+    }
+  };
+
   // Fetch request details and check expiry
   useEffect(() => {
-    const fetchRequestDetails = async () => {
-      if (!requestId) return;
-      
-      try {
-        setIsLoading(true);
-        const response = await getFileRequestByLink(requestId);
-        
-        setRequestDetails(response);
-        
-        // Check if request is expired
-        const now = new Date();
-        const expiryDate = new Date(response.expires_at);
-        
-        if (now > expiryDate || !response.is_active) {
-          setIsExpired(true);
-        }
-        
-        setIsLoading(false);
-      } catch (err) {
-        console.error("Failed to fetch request details", err);
-        setError("This upload link is invalid or has been removed.");
-        setIsLoading(false);
-      }
-    };
-    
     fetchRequestDetails();
   }, [requestId]);
 
@@ -220,23 +217,42 @@ const UploadPage: React.FC = () => {
   };
 
   const handleUpload = async () => {
-    if (!selectedFiles.length || !requestId) return;
-    
-    setUploading(true);
-    setUploadProgress(0);
-    setError(null);
+    if (selectedFiles.length === 0 || !requestId) return;
     
     try {
-      // Create a single FormData with all files
-      const formData = new FormData();
-      selectedFiles.forEach(file => {
-        formData.append('files', file);
+      setUploading(true);
+      setError('');
+      setSuccess(false);
+      setUploadProgress(0);
+      
+      // Upload all files
+      const uploadPromises = selectedFiles.map(async (file) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const uploadResponse = await axios.post(
+          `${API_BASE_URL}/uploads/${requestId}`,
+          formData,
+          {
+            headers: {
+              'Content-Type': 'multipart/form-data',
+            },
+            onUploadProgress: (progressEvent) => {
+              if (progressEvent.total) {
+                const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+                setUploadProgress(percentCompleted);
+              }
+            },
+          }
+        );
+        
+        return uploadResponse.data;
       });
       
-      // Use the batch upload API
-      await uploadMultipleFiles(requestId, formData, (progress: number) => {
-        setUploadProgress(progress);
-      });
+      const results = await Promise.all(uploadPromises);
+      
+      // Refresh request details to get the latest files
+      await fetchRequestDetails();
       
       setSuccess(true);
       setSelectedFiles([]);

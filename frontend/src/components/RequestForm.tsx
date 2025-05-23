@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { CreateRequestInput } from '../types';
 import ShareLink from './ShareLink';
 import { useAppContext } from '../context/AppContext';
+import { Link, useNavigate } from 'react-router-dom';
 
 const RequestForm: React.FC = () => {
-  const { userEmail, createRequest, error, clearError } = useAppContext();
+  const { userEmail, createRequest, error, clearError, isAuthenticated, authUser } = useAppContext();
+  const navigate = useNavigate();
   
   const [formData, setFormData] = useState<CreateRequestInput>({
-    email: userEmail || '',
+    recipientEmail: isAuthenticated && userEmail ? userEmail : '',
     description: '',
     deadline: '',
     expiry_days: 7
@@ -16,13 +18,15 @@ const RequestForm: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<Partial<Record<keyof CreateRequestInput, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [requestLink, setRequestLink] = useState<string | null>(null);
+  const [networkError, setNetworkError] = useState<string | null>(null);
+  const [showAuthRequired, setShowAuthRequired] = useState(false);
 
-  // Update email field if userEmail changes
+  // Update email field if userEmail changes and user is authenticated
   useEffect(() => {
-    if (userEmail && !formData.email) {
-      setFormData(prev => ({ ...prev, email: userEmail }));
+    if (isAuthenticated && userEmail && !formData.recipientEmail) {
+      setFormData(prev => ({ ...prev, recipientEmail: userEmail }));
     }
-  }, [userEmail, formData.email]);
+  }, [isAuthenticated, userEmail, formData.recipientEmail]);
 
   // Clear context error when component unmounts
   useEffect(() => {
@@ -36,11 +40,11 @@ const RequestForm: React.FC = () => {
     let isValid = true;
 
     // Email validation
-    if (!formData.email) {
-      newErrors.email = 'Email is required';
+    if (!formData.recipientEmail) {
+      newErrors.recipientEmail = 'Email is required';
       isValid = false;
-    } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
+    } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.recipientEmail)) {
+      newErrors.recipientEmail = 'Please enter a valid email address';
       isValid = false;
     }
 
@@ -48,8 +52,11 @@ const RequestForm: React.FC = () => {
     if (!formData.description) {
       newErrors.description = 'Description is required';
       isValid = false;
-    } else if (formData.description.length < 5) {
-      newErrors.description = 'Description must be at least 5 characters';
+    } else if (formData.description.length < 10) {
+      newErrors.description = 'Description must be at least 10 characters';
+      isValid = false;
+    } else if (formData.description.length > 500) {
+      newErrors.description = 'Description cannot exceed 500 characters';
       isValid = false;
     }
 
@@ -83,10 +90,27 @@ const RequestForm: React.FC = () => {
         [name]: undefined
       }));
     }
+    
+    // Clear network error when user makes changes
+    if (networkError) {
+      setNetworkError(null);
+    }
+    
+    // Hide auth required message when user is editing
+    if (showAuthRequired) {
+      setShowAuthRequired(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setNetworkError(null);
+    
+    // Check if user is authenticated first
+    if (!isAuthenticated) {
+      setShowAuthRequired(true);
+      return;
+    }
     
     if (!validateForm()) {
       return;
@@ -101,17 +125,31 @@ const RequestForm: React.FC = () => {
       if (result.success && result.link) {
         setRequestLink(result.link);
         
-        // Reset form for next submission
+        // Reset form for next submission but keep email if authenticated
         setFormData({
-          email: userEmail || '',
+          recipientEmail: isAuthenticated && userEmail ? userEmail : '',
           description: '',
           deadline: '',
           expiry_days: 7
         });
+        setValidationErrors({});
+      } else if (result.error) {
+        setNetworkError(result.error);
       }
+    } catch (err) {
+      setNetworkError(
+        err instanceof Error 
+          ? err.message 
+          : "Failed to create request. Please try again."
+      );
     } finally {
       setIsSubmitting(false);
     }
+  };
+  
+  const handleLoginRedirect = () => {
+    // Save current path and redirect to login
+    navigate('/login?returnUrl=/request');
   };
 
   const handleCreateAnother = () => {
@@ -124,6 +162,50 @@ const RequestForm: React.FC = () => {
 
   return (
     <div className="w-full">
+      {!isAuthenticated && (
+        <div className="mb-4 p-3 bg-blue-50 text-blue-700 border border-blue-100 rounded-md text-sm">
+          <div className="flex items-start">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p>
+                <Link to="/login?returnUrl=/request" className="font-medium text-blue-700 underline">
+                  Login or sign up
+                </Link> to save your email and easily manage your file requests.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Authentication required warning */}
+      {showAuthRequired && (
+        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-100 rounded-lg">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <h3 className="text-sm font-medium text-yellow-800">Authentication Required</h3>
+              <div className="mt-2 text-sm text-yellow-700">
+                <p>You must be logged in to create file request links.</p>
+                <button 
+                  onClick={handleLoginRedirect}
+                  className="mt-2 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+                >
+                  Sign in now
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} aria-label="Create file request form" noValidate className="space-y-5">
         {error && (
           <div className="p-3 bg-red-50 text-red-600 border border-red-100 rounded-lg text-sm">
@@ -131,29 +213,42 @@ const RequestForm: React.FC = () => {
           </div>
         )}
         
+        {networkError && (
+          <div className="p-3 bg-red-50 text-red-600 border border-red-100 rounded-lg text-sm">
+            {networkError}
+            <button 
+              type="button" 
+              className="ml-2 text-red-800 font-medium"
+              onClick={() => setNetworkError(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+        
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="recipientEmail" className="block text-sm font-medium text-gray-700 mb-1">
             Your Email <span className="text-red-500">*</span>
           </label>
           <input
             type="email"
-            id="email"
-            name="email"
-            value={formData.email}
+            id="recipientEmail"
+            name="recipientEmail"
+            value={formData.recipientEmail}
             onChange={handleChange}
             className={`w-full px-3 py-2 bg-white border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
-              validationErrors.email 
+              validationErrors.recipientEmail 
                 ? 'border-red-300 text-red-600 focus:ring-red-100 focus:border-red-400' 
                 : 'border-gray-300 focus:ring-blue-100 focus:border-blue-400'
             }`}
             placeholder="email@example.com"
-            aria-invalid={!!validationErrors.email}
-            aria-describedby={validationErrors.email ? "email-error" : undefined}
+            aria-invalid={!!validationErrors.recipientEmail}
+            aria-describedby={validationErrors.recipientEmail ? "email-error" : undefined}
             required
           />
-          {validationErrors.email && (
+          {validationErrors.recipientEmail && (
             <p id="email-error" className="mt-1 text-sm text-red-600" role="alert">
-              {validationErrors.email}
+              {validationErrors.recipientEmail}
             </p>
           )}
         </div>
@@ -177,16 +272,20 @@ const RequestForm: React.FC = () => {
             aria-invalid={!!validationErrors.description}
             aria-describedby={validationErrors.description ? "desc-error" : undefined}
             required
+            maxLength={500}
           />
           {validationErrors.description && (
             <p id="desc-error" className="mt-1 text-sm text-red-600" role="alert">
               {validationErrors.description}
             </p>
           )}
-          <p className="text-xs text-gray-500 mt-1">Be specific about what files you need and why.</p>
+          <div className="flex justify-between items-center mt-1">
+            <p className="text-xs text-gray-500">Be specific about what files you need and why.</p>
+            <p className="text-xs text-gray-400">{formData.description.length}/500</p>
+          </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label htmlFor="deadline" className="block text-sm font-medium text-gray-700 mb-1">
               Deadline (Optional)
@@ -204,6 +303,7 @@ const RequestForm: React.FC = () => {
               }`}
               aria-invalid={!!validationErrors.deadline}
               aria-describedby={validationErrors.deadline ? "deadline-error" : undefined}
+              min={new Date().toISOString().split('T')[0]} // Set min to today's date
             />
             {validationErrors.deadline && (
               <p id="deadline-error" className="mt-1 text-sm text-red-600" role="alert">
@@ -239,7 +339,9 @@ const RequestForm: React.FC = () => {
           className={`w-full py-3 mt-2 rounded-lg font-medium transition-all duration-200 ${
             isSubmitting 
               ? 'bg-blue-400 text-white cursor-not-allowed' 
-              : 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg active:bg-blue-800'
+              : isAuthenticated 
+                ? 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg active:bg-blue-800'
+                : 'bg-gray-300 text-gray-600 cursor-not-allowed'
           }`}
           aria-busy={isSubmitting}
         >
@@ -252,7 +354,7 @@ const RequestForm: React.FC = () => {
               Creating...
             </span>
           ) : (
-            'Generate Request Link'
+            isAuthenticated ? 'Generate Request Link' : 'Sign in to Generate Link'
           )}
         </button>
       </form>

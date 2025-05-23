@@ -1,9 +1,9 @@
 // frontend/src/services/api.ts
 import axios, { AxiosError, AxiosProgressEvent } from 'axios';
-import { CreateRequestInput, FileRequest, UploadedFile } from '../types';
+import { CreateRequestInput, FileRequest, UploadedFile, SubscriptionPlan, Subscription } from '../types';
 import { API_CONFIG } from '../config/environment';
 
-// Create axios instance with base URL
+// Create axios instance
 const api = axios.create({
   baseURL: API_CONFIG.BASE_URL,
   timeout: API_CONFIG.TIMEOUT,
@@ -13,13 +13,7 @@ const api = axios.create({
   },
 });
 
-// Response types
-export interface ApiResponse<T> {
-  data: T;
-  status: number;
-  statusText: string;
-}
-
+// Types
 export interface RequestCreationResponse {
   message: string;
   request: {
@@ -46,8 +40,13 @@ export interface FileDownloadResponse {
   download_url: string;
 }
 
+export interface StripeCheckoutResponse {
+  sessionId: string;
+  url: string;
+}
+
 // Error handling
-const handleApiError = (error: unknown): never => {
+function handleApiError(error: unknown): never {
   if (axios.isAxiosError(error)) {
     const axiosError = error as AxiosError<{ error: string }>;
     if (axiosError.response) {
@@ -56,140 +55,141 @@ const handleApiError = (error: unknown): never => {
         `Request failed with status ${axiosError.response.status}`
       );
     } else if (axiosError.request) {
-      throw new Error('No response received from server. Please check your connection.');
+      throw new Error('No response received from server');
     }
   }
   throw new Error('An unexpected error occurred');
-};
+}
 
-// Request creators
-export const createFileRequest = async (data: CreateRequestInput): Promise<RequestCreationResponse> => {
-  try {
-    const response = await api.post<RequestCreationResponse>('/requests', data);
-    return response.data;
-  } catch (error) {
-    return handleApiError(error);
+// Direct export of functions instead of using an object
+export function createFileRequest(data: CreateRequestInput) {
+  return api.post('/requests', data)
+    .then(response => response.data)
+    .catch(error => { throw error; });
   }
-};
 
-export const getRequestByLink = async (link: string): Promise<FileRequest> => {
-  try {
-    const response = await api.get<FileRequest>(`/requests/link/${link}`);
-    return response.data;
-  } catch (error) {
-    return handleApiError(error);
+export function getRequestByLink(link: string) {
+  return api.get(`/requests/link/${link}`)
+    .then(response => response.data)
+    .catch(error => { throw error; });
   }
-};
 
-// This function is specifically for the upload page to get file request info by link ID
-export const getFileRequestByLink = async (linkId: string): Promise<any> => {
-  try {
-    const response = await api.get(`/requests/link/${linkId}`);
-    return response.data;
-  } catch (error) {
-    return handleApiError(error);
+export function getFileRequestByLink(linkId: string) {
+  return api.get(`/requests/link/${linkId}`)
+    .then(response => response.data)
+    .catch(error => { throw error; });
   }
-};
 
-export const getUserRequests = async (email: string): Promise<FileRequest[]> => {
-  try {
-    const response = await api.get<FileRequest[]>(`/requests/user/${email}`);
-    return response.data;
-  } catch (error) {
-    return handleApiError(error);
+export function getUserRequests(email: string) {
+  return api.get(`/requests/user/${email}`)
+    .then(response => response.data)
+    .catch(error => { throw error; });
   }
-};
 
-export const uploadFile = async (requestId: string, file: File): Promise<FileUploadResponse> => {
-  try {
+export function uploadFile(requestId: string, file: File) {
   const formData = new FormData();
   formData.append('file', file);
   
-    const response = await api.post<FileUploadResponse>(`/files/${requestId}`, formData, {
+  return api.post(`/files/${requestId}`, formData, {
     headers: {
       'Content-Type': 'multipart/form-data',
     },
-  });
-    
-    return response.data;
-  } catch (error) {
-    return handleApiError(error);
-  }
-};
+  })
+    .then(response => response.data)
+    .catch(error => { throw error; });
+}
 
-// Upload file with progress tracking
-export const uploadFileToRequest = async (
+export function uploadFileToRequest(
   requestId: string, 
   formData: FormData, 
   onProgress?: (progressEvent: AxiosProgressEvent) => void
-): Promise<FileUploadResponse> => {
-  try {
-    const response = await api.post<FileUploadResponse>(
-      `/files/${requestId}`, 
-      formData, 
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        onUploadProgress: onProgress
+) {
+  return api.post(`/files/${requestId}`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+    onUploadProgress: onProgress
+  })
+    .then(response => response.data)
+    .catch(error => { throw error; });
+}
+
+export function uploadFilesToRequest(
+  requestId: string,
+  formData: FormData,
+  onProgress?: (progress: number) => void
+) {
+  return api.post(`/files/${requestId}/batch`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+    onUploadProgress: (progressEvent) => {
+      if (progressEvent.total && onProgress) {
+        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        onProgress(percentCompleted);
       }
-    );
-    
-    return response.data;
-  } catch (error) {
-    return handleApiError(error);
-  }
+    }
+  })
+    .then(response => response.data)
+    .catch(error => { throw error; });
+}
+
+export function getRequestFiles(requestId: string) {
+  return api.get(`/files/${requestId}`)
+    .then(response => response.data)
+    .catch(error => { throw error; });
+}
+
+export function getFileDownloadUrl(fileId: string) {
+  return api.get(`/files/download/${fileId}`)
+    .then(response => response.data)
+    .catch(error => { throw error; });
+}
+
+export function downloadAllFiles(requestId: string) {
+  return api.get(`/files/download-all/${requestId}`)
+    .then(response => response.data)
+    .catch(error => { throw error; });
+}
+
+export function getSubscriptionPlans() {
+  return api.get('/subscriptions/plans')
+    .then(response => response.data)
+    .catch(error => { throw error; });
+}
+
+export function getUserSubscription(userId: string) {
+  return api.get(`/subscriptions/my-subscription`)
+    .then(response => response.data)
+    .catch(error => { throw error; });
+}
+
+export function createCheckoutSession(priceId: string, userId: string, email: string) {
+  return api.post('/subscriptions/create-checkout', { priceId, userId, email })
+    .then(response => response.data)
+    .catch(error => { throw error; });
+}
+
+export function cancelSubscription() {
+  return api.post('/subscriptions/cancel')
+    .then(response => response.data)
+    .catch(error => { throw error; });
+}
+
+// Export the API object as default
+export default {
+  createFileRequest,
+  getRequestByLink,
+  getFileRequestByLink,
+  getUserRequests,
+  uploadFile,
+  uploadFileToRequest,
+  uploadFilesToRequest,
+  getRequestFiles,
+  getFileDownloadUrl,
+  downloadAllFiles,
+  getSubscriptionPlans,
+  getUserSubscription,
+  createCheckoutSession,
+  cancelSubscription
 };
-
-export const getRequestFiles = async (requestId: string): Promise<UploadedFile[]> => {
-  try {
-    const response = await api.get<UploadedFile[]>(`/files/${requestId}`);
-    return response.data;
-  } catch (error) {
-    return handleApiError(error);
-  }
-};
-
-export const getFileDownloadUrl = async (fileId: string): Promise<FileDownloadResponse> => {
-  try {
-    const response = await api.get<FileDownloadResponse>(`/files/download/${fileId}`);
-    return response.data;
-  } catch (error) {
-    return handleApiError(error);
-  }
-};
-
-export const downloadAllFiles = async (requestId: string): Promise<FileDownloadResponse[]> => {
-  try {
-    const response = await api.get<FileDownloadResponse[]>(`/files/download-all/${requestId}`);
-    return response.data;
-  } catch (error) {
-    return handleApiError(error);
-  }
-};
-
-// Add response interceptor for global error handling
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    console.error('API Error:', error);
-    return Promise.reject(error);
-  }
-);
-
-// Add request interceptor for authentication
-api.interceptors.request.use(
-  (config) => {
-    // You can add auth token here in the future
-    // const token = localStorage.getItem('authToken');
-    // if (token) {
-    //   config.headers.Authorization = `Bearer ${token}`;
-    // }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-export default api;

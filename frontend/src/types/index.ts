@@ -4,6 +4,7 @@ export interface User {
     email: string;
     created_at: string;
     last_login?: string;
+    subscription_tier?: SubscriptionTier;
   }
   
   export interface FileRequest {
@@ -31,7 +32,7 @@ export interface User {
   }
   
   export interface CreateRequestInput {
-    email: string;
+    recipientEmail: string;
     description: string;
     deadline?: string;
     expiry_days?: number;
@@ -68,4 +69,39 @@ export interface User {
     id: string;
     filename: string;
     download_url: string;
+  }
+
+  // Subscription types
+  export enum SubscriptionTier {
+    FREE = 'free',
+    PREMIUM = 'premium'
+  }
+  
+  export interface SubscriptionLimits {
+    maxRequests: number;
+    maxStorageMB: number;
+    expiryDays: number;
+  }
+  
+  export interface Subscription {
+    id: string;
+    user_id: string;
+    tier: SubscriptionTier;
+    is_active: boolean;
+    start_date: string;
+    end_date?: string;
+    created_at: string;
+    updated_at: string;
+  }
+  
+  export interface SubscriptionPlan {
+    id: string;
+    name: string;
+    description: string;
+    tier: SubscriptionTier;
+    limits: SubscriptionLimits;
+    priceMonthly?: number;
+    priceYearly?: number;
+    stripePriceIdMonthly?: string;
+    stripePriceIdYearly?: string;
   }
