@@ -26,16 +26,15 @@ const transporter = nodemailer.createTransport({
 });
 
 /**
- * Send notification email when files are uploaded
+ * Send notification to recipient when files are uploaded
  */
-export const sendUploadNotification = async (
-  userEmail: string,
+export const sendRecipientNotification = async (
+  recipientEmail: string,
   requestDescription: string,
   files: UploadedFile[],
   requestId: string
 ): Promise<boolean> => {
   try {
-    // Skip sending if no email configuration
     if (!EMAIL_CONFIG.auth.user || !EMAIL_CONFIG.auth.pass) {
       console.warn('Email not configured. Skipping notification.');
       return false;
@@ -45,12 +44,11 @@ export const sendUploadNotification = async (
       `• ${file.filename} (${formatFileSize(file.file_size || 0)})`
     ).join('\n');
 
-    // Generate dashboard link
     const dashboardLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard`;
 
     const mailOptions = {
       from: `"FileNest" <${EMAIL_CONFIG.from}>`,
-      to: userEmail,
+      to: recipientEmail,
       subject: `Files uploaded: ${requestDescription}`,
       text: `
 Hello,
@@ -98,7 +96,73 @@ Thank you for using FileNest!
     await transporter.sendMail(mailOptions);
     return true;
   } catch (error) {
-    console.error('Error sending email notification:', error);
+    console.error('Error sending recipient notification:', error);
+    return false;
+  }
+};
+
+/**
+ * Send confirmation to client who uploaded files
+ */
+export const sendClientConfirmation = async (
+  clientEmail: string,
+  requestDescription: string,
+  files: UploadedFile[]
+): Promise<boolean> => {
+  try {
+    if (!EMAIL_CONFIG.auth.user || !EMAIL_CONFIG.auth.pass) {
+      console.warn('Email not configured. Skipping confirmation.');
+      return false;
+    }
+
+    const filesList = files.map(file => 
+      `• ${file.filename} (${formatFileSize(file.file_size || 0)})`
+    ).join('\n');
+
+    const mailOptions = {
+      from: `"FileNest" <${EMAIL_CONFIG.from}>`,
+      to: clientEmail,
+      subject: `Upload Confirmation: ${requestDescription}`,
+      text: `
+Hello,
+
+Your files have been successfully uploaded to the request "${requestDescription}".
+
+Files uploaded:
+${filesList}
+
+The recipient has been notified and can access these files.
+
+Thank you for using FileNest!
+      `,
+      html: `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <div style="background-color: #3B82F6; padding: 20px; text-align: center;">
+    <h1 style="color: white; margin: 0;">FileNest</h1>
+  </div>
+  <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none;">
+    <p style="margin-top: 0;">Hello,</p>
+    <p>Your files have been successfully uploaded to the request "<strong>${requestDescription}</strong>".</p>
+    
+    <div style="background-color: #f9fafb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+      <h3 style="margin-top: 0;">Files uploaded:</h3>
+      <ul style="padding-left: 20px;">
+        ${files.map(file => `<li>${file.filename} (${formatFileSize(file.file_size || 0)})</li>`).join('')}
+      </ul>
+    </div>
+    
+    <p>The recipient has been notified and can access these files.</p>
+    
+    <p style="margin-bottom: 0; color: #6B7280; font-size: 14px; margin-top: 30px;">Thank you for using FileNest!</p>
+  </div>
+</div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Error sending client confirmation:', error);
     return false;
   }
 };
@@ -171,10 +235,98 @@ Thank you!
   }
 };
 
-// Format file size helper
+/**
+ * Send notification for expiring file requests
+ */
+export const sendExpiryNotification = async (params: {
+  email: string,
+  description: string,
+  expiryDate: string,
+  unique_link: string
+}): Promise<boolean> => {
+  try {
+    const { email, description, expiryDate, unique_link } = params;
+    
+    if (!EMAIL_CONFIG.auth.user || !EMAIL_CONFIG.auth.pass) {
+      console.warn('Email not configured. Skipping expiry notification.');
+      return false;
+    }
+
+    const expiryDateFormatted = new Date(expiryDate).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const uploadLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/upload/${unique_link}`;
+
+    const mailOptions = {
+      from: `"FileNest" <${EMAIL_CONFIG.from}>`,
+      to: email,
+      subject: `File Request Expiring Soon: ${description}`,
+      text: `
+Hello,
+
+Your file request "${description}" is set to expire on ${expiryDateFormatted}.
+
+If you're still expecting files to be uploaded, make sure they're submitted before this date. After expiration, the upload link will no longer work and any pending uploads will be lost.
+
+Link: ${uploadLink}
+
+Thank you for using FileNest!
+      `,
+      html: `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+  <div style="background-color: #3B82F6; padding: 20px; text-align: center;">
+    <h1 style="color: white; margin: 0;">FileNest</h1>
+  </div>
+  <div style="padding: 20px; border: 1px solid #e5e7eb; border-top: none;">
+    <p style="margin-top: 0;">Hello,</p>
+    
+    <div style="background-color: #FEF2F2; border-left: 4px solid #EF4444; padding: 15px; margin: 20px 0;">
+      <p style="margin: 0; color: #B91C1C; font-weight: bold;">⚠️ Expiration Notice</p>
+      <p style="margin-top: 5px; margin-bottom: 0;">Your file request "${description}" is set to expire on <strong>${expiryDateFormatted}</strong>.</p>
+    </div>
+    
+    <p>If you're still expecting files to be uploaded, make sure they're submitted before this date. After expiration, the upload link will no longer work and any pending uploads will be lost.</p>
+    
+    <p style="text-align: center; margin-top: 25px;">
+      <a href="${uploadLink}" 
+         style="display: inline-block; background-color: #3B82F6; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">
+         View Upload Link
+      </a>
+    </p>
+    
+    <p style="margin-top: 30px; color: #6B7280; font-size: 14px;">
+      <strong>Need more time?</strong> Consider upgrading to our Premium plan to get extended expiry periods.
+    </p>
+    
+    <p style="margin-bottom: 0; color: #6B7280; font-size: 14px; margin-top: 20px;">Thank you for using FileNest!</p>
+  </div>
+</div>
+      `
+    };
+
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Error sending expiry notification:', error);
+    return false;
+  }
+};
+
+// Helper function to format file size
 function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return bytes + ' B';
-  else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  else if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  else return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
+
+export default {
+  sendRecipientNotification,
+  sendClientConfirmation,
+  sendUploadReminder
+};

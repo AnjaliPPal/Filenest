@@ -1,10 +1,13 @@
 import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
-import { sendUploadNotification } from '../utils/email';
+// Unified email service is now used
+import { sendUploadNotification } from '../utils/emailService';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import archiver from 'archiver';
 import stream from 'stream';
+import { SubscriptionTier } from '../types/subscription';
+import { getSubscriptionLimits } from './subscriptionController';
 
 // Upload file to a request
 export const uploadFile = async (req: Request, res: Response): Promise<void> => {
@@ -21,7 +24,7 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
     // First check if the requestId is a unique_link rather than a UUID
     const { data: requestByLink, error: linkError } = await supabase
       .from('file_requests')
-      .select('*, users(email)')
+      .select('*, users!file_requests_user_id_fkey(id, email)')
       .eq('unique_link', requestId)
       .eq('is_active', true)
       .single();
@@ -34,7 +37,7 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
       try {
         const result = await supabase
           .from('file_requests')
-          .select('*, users(email)')
+          .select('*, users!file_requests_user_id_fkey(id, email)')
           .eq('id', requestId)
           .eq('is_active', true)
           .single();
@@ -54,6 +57,63 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
 
     if (new Date(request.expires_at) < new Date()) {
       res.status(400).json({ error: 'This file request has expired' });
+      return;
+    }
+
+    // Default to FREE tier
+    let tier = SubscriptionTier.FREE;
+    
+    // If user_id exists, try to get their subscription tier
+    if (request.user_id) {
+      const { data: subscriptionData } = await supabase
+        .from('subscriptions')
+        .select('tier')
+        .eq('user_id', request.user_id)
+        .eq('is_active', true)
+        .single();
+      
+      if (subscriptionData) {
+        tier = subscriptionData.tier;
+      }
+    }
+    
+    // Get subscription limits based on tier
+    const limits = getSubscriptionLimits(tier);
+    
+    // Calculate current storage usage in MB by summing up existing files
+    let currentStorageUsedMB = 0;
+    
+    if (request.user_id) {
+      // Get all uploaded files for this user
+      const { data: userFiles } = await supabase
+        .from('uploaded_files')
+        .select('file_size')
+        .eq('request_id', request.id);
+        
+      if (userFiles && userFiles.length > 0) {
+        const totalBytes = userFiles.reduce((sum, file) => sum + (file.file_size || 0), 0);
+        currentStorageUsedMB = totalBytes / (1024 * 1024);
+      }
+    }
+    
+    // Calculate total size of files to upload in MB
+    let newFilesSizeMB = 0;
+    if (req.file) {
+      newFilesSizeMB = req.file.size / (1024 * 1024);
+    } else if (req.files && Array.isArray(req.files)) {
+      newFilesSizeMB = (req.files as Express.Multer.File[]).reduce((total, file) => total + file.size, 0) / (1024 * 1024);
+    }
+    
+    // Check if uploading these files would exceed storage limit
+    if (currentStorageUsedMB + newFilesSizeMB > limits.maxStorageMB) {
+      res.status(403).json({
+        error: 'Storage limit exceeded for this subscription tier',
+        tier,
+        limit: limits.maxStorageMB,
+        current: Math.round(currentStorageUsedMB * 100) / 100,
+        needed: Math.round((currentStorageUsedMB + newFilesSizeMB) * 100) / 100,
+        upgradeRequired: tier === SubscriptionTier.FREE
+      });
       return;
     }
 
@@ -114,16 +174,17 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
           .eq('id', request.id);
 
         // Send email notification after successful upload
-        if (request.users && request.users.email) {
+        if (request.recipient_email) {
           try {
+            // Send notification to recipient
             await sendUploadNotification(
-              request.users.email,
+              request.recipient_email,
               request.description,
               [fileData],
               request.id
             );
           } catch (emailErr) {
-            console.error('Failed to send email notification:', emailErr);
+            console.error('Failed to send email notifications:', emailErr);
             // Continue even if email fails
           }
         }
@@ -210,16 +271,34 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
       
       // Update request status if any files were uploaded successfully
       if (uploadResults.some(result => result.success)) {
-        await supabase
-          .from('file_requests')
-          .update({ status: 'completed' })
-          .eq('id', request.id);
+        try {
+          // Update file_request status to completed
+          await supabase
+            .from('file_requests')
+            .update({ status: 'completed' })
+            .eq('id', request.id);
+          
+          // Make sure users table reflects that user has uploaded files 
+          // by ensuring the user_id in file_requests links to the user
+          if (request.user_id) {
+            const { error: userUpdateError } = await supabase
+              .from('users')
+              .update({ updated_at: new Date().toISOString() })
+              .eq('id', request.user_id);
+              
+            if (userUpdateError) {
+              console.error('Error updating user:', userUpdateError);
+            }
+          }
+        } catch (updateError) {
+          console.error('Error updating request status or user:', updateError);
+        }
         
         // Send email notification after successful batch upload
-        if (uploadedFiles.length > 0 && request.users && request.users.email) {
+        if (uploadedFiles.length > 0 && request.recipient_email) {
           try {
             await sendUploadNotification(
-              request.users.email,
+              request.recipient_email,
               request.description,
               uploadedFiles,
               request.id

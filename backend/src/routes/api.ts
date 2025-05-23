@@ -13,6 +13,11 @@ import {
   downloadAllFiles,
   downloadZipFile
 } from '../controllers/fileController';
+import {
+  getDashboard,
+  getDashboardByEmail
+} from '../controllers/dashboardController';
+import { authMiddleware } from '../middlewares/authMiddleware';
 
 const router = express.Router();
 
@@ -24,16 +29,20 @@ const upload = multer({
 });
 
 // Request routes
-router.post('/requests', createRequest);
+router.post('/requests', authMiddleware.optionalAuth, createRequest);
 router.get('/requests/link/:link', getRequestByLink);
 router.get('/requests/user/:email', getUserRequests);
 
+// Dashboard routes (optimized)
+router.get('/dashboard/user/:userId', authMiddleware.authenticate, getDashboard);
+router.get('/dashboard/email/:email', authMiddleware.authenticate, getDashboardByEmail);
+
 // File routes
-router.post('/files/:requestId', upload.single('file'), uploadFile);
-router.post('/files/:requestId/batch', upload.array('files'), uploadFile);
-router.get('/files/:requestId', getRequestFiles);
-router.get('/files/download/:fileId', downloadFile);
-router.get('/files/download-all/:requestId', downloadAllFiles);
-router.get('/files/download-zip/:requestId', downloadZipFile);
+router.post('/files/:requestId', authMiddleware.optionalAuth, upload.single('file'), uploadFile);
+router.post('/files/:requestId/batch', authMiddleware.optionalAuth, upload.array('files', 10), uploadFile);
+router.get('/files/:requestId', authMiddleware.optionalAuth, getRequestFiles);
+router.get('/files/download/:fileId', authMiddleware.optionalAuth, downloadFile);
+router.get('/files/download-all/:requestId', authMiddleware.optionalAuth, downloadAllFiles);
+router.get('/files/download-zip/:requestId', authMiddleware.optionalAuth, downloadZipFile);
 
 export default router;

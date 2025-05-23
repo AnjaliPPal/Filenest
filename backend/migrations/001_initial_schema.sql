@@ -4,41 +4,45 @@
 -- Enable UUID extensions if not already enabled
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create users table (if it doesn't exist)
+-- Create users table
 CREATE TABLE IF NOT EXISTS users (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  email TEXT UNIQUE NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  last_login TIMESTAMP WITH TIME ZONE
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create file requests table
+-- Create file_requests table
 CREATE TABLE IF NOT EXISTS file_requests (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  description TEXT NOT NULL,
-  deadline TIMESTAMP WITH TIME ZONE,
-  status TEXT NOT NULL DEFAULT 'pending', -- pending, completed, expired
-  unique_link TEXT UNIQUE NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-  is_active BOOLEAN DEFAULT TRUE,
-  
-  CONSTRAINT status_check CHECK (status IN ('pending', 'completed', 'expired'))
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID,
+    description TEXT NOT NULL,
+    unique_link VARCHAR(255) UNIQUE NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending',
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN DEFAULT true,
+    deadline TIMESTAMP WITH TIME ZONE,
+    recipient_email VARCHAR(255) NOT NULL,
+    CONSTRAINT file_requests_user_id_fkey FOREIGN KEY (user_id) 
+        REFERENCES users(id) ON DELETE SET NULL
 );
 
--- Create uploaded files table
+-- Create uploaded_files table
 CREATE TABLE IF NOT EXISTS uploaded_files (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  request_id UUID NOT NULL REFERENCES file_requests(id) ON DELETE CASCADE,
-  filename TEXT NOT NULL,
-  storage_path TEXT NOT NULL,
-  content_type TEXT,
-  file_size INTEGER, -- size in bytes
-  uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    request_id UUID NOT NULL,
+    filename VARCHAR(255) NOT NULL,
+    storage_path VARCHAR(255) NOT NULL,
+    content_type VARCHAR(100),
+    file_size BIGINT,
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uploaded_files_request_id_fkey FOREIGN KEY (request_id)
+        REFERENCES file_requests(id) ON DELETE CASCADE
 );
 
--- Add indexes for performance
+-- Add indexes
 CREATE INDEX IF NOT EXISTS idx_file_requests_user_id ON file_requests(user_id);
 CREATE INDEX IF NOT EXISTS idx_file_requests_unique_link ON file_requests(unique_link);
 CREATE INDEX IF NOT EXISTS idx_uploaded_files_request_id ON uploaded_files(request_id);
@@ -56,4 +60,54 @@ BEGIN
   END LOOP;
   RETURN result;
 END;
-$$ LANGUAGE plpgsql; 
+$$ LANGUAGE plpgsql;
+
+-- Create function for running SQL migrations
+CREATE OR REPLACE FUNCTION exec_sql(sql_query text)
+RETURNS json AS $$
+BEGIN
+  EXECUTE sql_query;
+  RETURN json_build_object('success', true);
+EXCEPTION WHEN OTHERS THEN
+  RETURN json_build_object('error', SQLERRM);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Add RLS policies
+ALTER TABLE file_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE uploaded_files ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for file_requests
+CREATE POLICY "Users can view their own file requests"
+ON file_requests FOR SELECT
+USING (auth.uid() = user_id OR user_id IS NULL);
+
+CREATE POLICY "Users can create file requests"
+ON file_requests FOR INSERT
+WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
+
+CREATE POLICY "Users can update their own file requests"
+ON file_requests FOR UPDATE
+USING (auth.uid() = user_id OR user_id IS NULL);
+
+-- Create policies for uploaded_files
+CREATE POLICY "Users can view files for their requests"
+ON uploaded_files FOR SELECT
+USING (
+  EXISTS (
+    SELECT 1 FROM file_requests
+    WHERE file_requests.id = uploaded_files.request_id
+    AND (file_requests.user_id = auth.uid() OR file_requests.user_id IS NULL)
+  )
+);
+
+CREATE POLICY "Anyone can upload files to a request"
+ON uploaded_files FOR INSERT
+WITH CHECK (
+  EXISTS (
+    SELECT 1 FROM file_requests
+    WHERE file_requests.id = request_id
+    AND file_requests.is_active = true
+    AND file_requests.expires_at > NOW()
+  )
+); 

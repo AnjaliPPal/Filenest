@@ -7,14 +7,15 @@ export interface User {
   
   export interface FileRequest {
     id: string;
-    user_id: string;
+    recipient_email: string;
     description: string;
-    deadline?: string;
-    status: 'pending' | 'completed' | 'expired';
+    deadline: string | null;
     unique_link: string;
+    status: 'pending' | 'completed' | 'expired';
     created_at: string;
     expires_at: string;
     is_active: boolean;
+    user_id: string;
   }
   
   export interface UploadedFile {
@@ -28,7 +29,7 @@ export interface User {
   }
   
   export interface CreateRequestInput {
-    email: string;
+    recipientEmail: string;
     description: string;
     deadline?: string;
     expiry_days?: number;
@@ -38,3 +39,15 @@ export interface User {
     request_id: string;
     file: Express.Multer.File;
   }
+
+// Add Express namespace declaration to extend Request
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        userId: string;
+        email?: string;
+      };
+    }
+  }
+}

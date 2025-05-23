@@ -1,121 +1,141 @@
 // backend/src/index.ts
-import express, { RequestHandler } from 'express';
+import express, { RequestHandler, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
 import apiRoutes from './routes/api';
+import authRoutes from './routes/authRoutes';
+import subscriptionRoutes from './routes/subscriptionRoutes';
+import gdprRoutes from './routes/gdprRoutes';
 import fs from 'fs';
 import path from 'path';
 import { supabase } from './config/supabase';
 import { initializeReminderScheduler } from './utils/reminderScheduler';
-// import compression from 'compression';
-// import rateLimit from 'express-rate-limit';
+import { initializeExpiryManager } from './utils/expiryManager';
+import compression from 'compression';
+import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
+import { corsMiddleware, apiLimiter, securityHeaders } from './middleware/securityMiddleware';
+import { runMigrations } from './utils/runMigrations';
+import { logger } from './utils/logger';
+import { DbIntegrityService } from './services/dbIntegrityService';
 
 // Load environment variables
 dotenv.config();
 
 // Create Express app
 const app = express();
-const PORT = parseInt( '3001', 10);
+const PORT = 3001; // Fixed port to match frontend expectations
 
-// Security and performance middleware
-app.use(helmet()); // Security headers
-app.use(cors({ 
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
-}));
-// app.use(compression() as RequestHandler); // Compress responses
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// CORS must come before other middleware
+app.use(corsMiddleware);
 
-// Rate limiting to prevent abuse
-// const apiLimiter = rateLimit({
-//   windowMs: 15 * 60 * 1000, // 15 minutes
-//   max: 100, // limit each IP to 100 requests per windowMs
-//   standardHeaders: true,
-//   legacyHeaders: false,
-//   message: { 
-//     error: 'Too many requests, please try again later.' 
-//   }
-// });
-// app.use('/api', apiLimiter as RequestHandler);
+// Use helmet for security headers
+app.use(helmet() as any);
+
+// Additional security headers
+app.use(securityHeaders as any);
+
+// Parse JSON request body
+app.use(express.json({ limit: '5mb' }));
+
+// Parse URL-encoded request body
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+
+// Compression to save bandwidth - fix TypeScript type issue
+app.use(compression() as any);
+
+// Rate limiting to prevent abuse - make sure this comes after core middleware
+app.use('/api', apiLimiter as any);
 
 // Routes
 app.use('/api', apiRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/gdpr', gdprRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
 });
 
-// Function to run SQL migrations
-const runMigrations = async () => {
-  try {
-    // Get migration directory
-    const migrationsDir = path.join(__dirname, '../migrations');
-    
-    if (!fs.existsSync(migrationsDir)) {
-      console.log('No migrations directory found, skipping migrations');
-      return;
-    }
-    
-    // Read all migration files and sort them by name
-    const migrationFiles = fs.readdirSync(migrationsDir)
-      .filter(file => file.endsWith('.sql'))
-      .sort();
-    
-    console.log(`Found ${migrationFiles.length} migration files`);
-    
-    // Execute each migration file directly with SQL
-    for (const file of migrationFiles) {
-      try {
-        console.log(`Running migration: ${file}`);
-        
-        // Read the SQL file
-        const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-        
-        // Execute the SQL directly
-        const { error } = await supabase.rpc('exec_sql', { sql_query: sql });
-        
-        if (error) {
-          console.warn(`Warning in migration ${file}:`, error.message);
-          // Continue with other migrations
-        } else {
-          console.log(`Migration ${file} completed successfully`);
-        }
-      } catch (err) {
-        console.error(`Error in migration ${file}:`, err);
-        // Continue with other migrations
-      }
-    }
-    
-    console.log('Migrations completed');
-  } catch (error) {
-    console.error('Error running migrations:', error);
-  }
-};
+// Privacy policy endpoint
+app.get('/privacy-policy', (req, res) => {
+  res.status(200).json({
+    title: 'Privacy Policy',
+    lastUpdated: new Date().toISOString().split('T')[0],
+    content: `
+      <h1>Privacy Policy</h1>
+      <p>Last updated: ${new Date().toISOString().split('T')[0]}</p>
+      
+      <h2>1. Introduction</h2>
+      <p>This Privacy Policy explains how we collect, use, process, and disclose your information when you use FileNest.</p>
+      
+      <h2>2. Information We Collect</h2>
+      <p>We collect information you provide directly to us, such as your name, email address, and any files you upload.</p>
+      
+      <h2>3. How We Use Your Information</h2>
+      <p>We use your information to provide, maintain, and improve our services, including file storage and sharing.</p>
+      
+      <h2>4. Data Retention</h2>
+      <p>We retain your data as long as your account is active or as needed to provide services. You can request deletion of your data at any time.</p>
+      
+      <h2>5. Your Rights</h2>
+      <p>You have the right to access, update, or delete your personal information. You can also request a copy of your data.</p>
+      
+      <h2>6. Security</h2>
+      <p>We implement appropriate security measures to protect your data. All files are encrypted at rest.</p>
+      
+      <h2>7. Changes to This Policy</h2>
+      <p>We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new policy on this page.</p>
+      
+      <h2>8. Contact Us</h2>
+      <p>If you have any questions about this Privacy Policy, please contact us.</p>
+    `
+  });
+});
+
+// Error handling middleware
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  logger.error('Unhandled error:', err);
+  res.status(500).json({
+    error: process.env.NODE_ENV === 'production' 
+      ? 'Internal Server Error' 
+      : err.message || 'Something went wrong'
+  });
+});
 
 // Start server
 const startServer = async () => {
   try {
-    // Run database migrations first
-    // await runMigrations();  // Commented out since we already ran migrations manually
+    // Run migrations
+    await runMigrations();
+    
+    // Initialize the database integrity service
+    try {
+      await DbIntegrityService.initialize();
+    } catch (dbIntegrityError) {
+      logger.error('Error initializing database service:', dbIntegrityError);
+    }
 
     // Start the server
     app.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
+      logger.info(`Server running on port ${PORT}`);
       
       // Initialize the reminder scheduler if enabled
       if (process.env.ENABLE_REMINDERS === 'true') {
         const reminderInterval = parseInt(process.env.REMINDER_INTERVAL_HOURS || '12', 10);
         initializeReminderScheduler(reminderInterval);
-        console.log(`Reminder scheduler initialized with ${reminderInterval} hour interval`);
+        logger.info(`Reminder scheduler initialized with ${reminderInterval} hour interval`);
       } else {
-        console.log('Reminder scheduler disabled');
+        logger.info('Reminder scheduler disabled');
       }
+      
+      // Initialize auto-expiry manager
+      initializeExpiryManager(24); // Check for expired requests daily
+      logger.info('Expiry manager initialized with 24 hour interval');
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    logger.error('Failed to start server:', error);
     process.exit(1);
   }
 };
@@ -128,11 +148,11 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 process.on('uncaughtException', (error) => {
-  console.error('Uncaught Exception:', error);
+  logger.error('Uncaught Exception:', error);
   
   // For severe errors, it's often better to exit and let the process manager restart
   if (process.env.NODE_ENV === 'production') {
-    console.error('Critical error, shutting down in 1 second...');
+    logger.error('Critical error, shutting down in 1 second...');
     setTimeout(() => process.exit(1), 1000);
   }
 });

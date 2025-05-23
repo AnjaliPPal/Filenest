@@ -17,8 +17,9 @@
     /* Type Checking */
     "strict": true,                                      /* Enable all strict type-checking options. */
     
-    "skipLibCheck": true   ,  
-    "resolveJsonModule": true                            /* Skip type checking all .d.ts files. */
+    "skipLibCheck": true,  
+    "resolveJsonModule": true,                            /* Skip type checking all .d.ts files. */
+    "typeRoots": ["./node_modules/@types", "./src/types"]
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "**/*.test.ts"]
