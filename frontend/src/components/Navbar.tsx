@@ -1,55 +1,80 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppContext } from '../context/AppContext';
+import { useIsMobile } from '../hooks/useMediaQuery';
 
 const Navbar: React.FC = () => {
   const { authUser, isAuthenticated, logout } = useAppContext();
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
 
   const handleLogout = async () => {
     try {
       await logout();
+      setIsOpen(false); // Close mobile menu
       navigate('/');
     } catch (error) {
       console.error('Logout error:', error);
     }
   };
 
+  const closeMobileMenu = () => {
+    setIsOpen(false);
+  };
+
   return (
-    <nav className="bg-white shadow-sm fixed w-full z-10">
+    <nav className="bg-white shadow-sm fixed w-full z-50 border-b border-gray-100">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
-          <div className="flex">
-            <div className="flex-shrink-0 flex items-center">
-              <Link to="/" className="text-xl font-bold text-blue-600">
+        <div className="flex justify-between items-center h-16">
+          {/* Logo and brand */}
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <Link 
+                to="/" 
+                className="text-xl sm:text-2xl font-bold text-primary-600 hover:text-primary-700 transition-colors duration-200"
+                onClick={closeMobileMenu}
+              >
                 FileNest
               </Link>
             </div>
-            <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
+            
+            {/* Desktop navigation */}
+            <div className="hidden md:ml-8 md:flex md:space-x-6">
               <Link
                 to="/"
-                className="border-transparent text-gray-500 hover:border-blue-500 hover:text-blue-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                className="text-gray-600 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 hover:bg-gray-50"
               >
                 Home
               </Link>
               {isAuthenticated && authUser && (
                 <Link
                   to="/dashboard"
-                  className="border-transparent text-gray-500 hover:border-blue-500 hover:text-blue-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                  className="text-gray-600 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 hover:bg-gray-50"
                 >
                   Dashboard
                 </Link>
               )}
             </div>
           </div>
-          <div className="hidden sm:ml-6 sm:flex sm:items-center">
+
+          {/* Desktop auth section */}
+          <div className="hidden md:flex md:items-center md:space-x-4">
             {isAuthenticated && authUser ? (
               <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-700">{authUser.email}</span>
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-primary-100 rounded-full flex items-center justify-center">
+                    <span className="text-primary-700 text-sm font-semibold">
+                      {authUser.email?.[0]?.toUpperCase() || 'U'}
+                    </span>
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 max-w-32 truncate">
+                    {authUser.email}
+                  </span>
+                </div>
                 <button
                   onClick={handleLogout}
-                  className="bg-white border border-gray-300 rounded-md py-1.5 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                  className="bg-white border border-gray-300 rounded-lg py-2 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200"
                 >
                   Sign out
                 </button>
@@ -57,18 +82,22 @@ const Navbar: React.FC = () => {
             ) : (
               <Link
                 to="/login"
-                className="bg-blue-600 border border-transparent rounded-md py-1.5 px-3 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                className="bg-primary-600 border border-primary-600 rounded-lg py-2 px-4 text-sm font-medium text-white hover:bg-primary-700 hover:border-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all duration-200"
               >
                 Sign in
               </Link>
             )}
           </div>
-          <div className="-mr-2 flex items-center sm:hidden">
+
+          {/* Mobile menu button */}
+          <div className="md:hidden">
             <button
               onClick={() => setIsOpen(!isOpen)}
-              className="bg-white inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+              className="bg-white inline-flex items-center justify-center p-2 rounded-lg text-gray-500 hover:text-gray-600 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500 transition-all duration-200"
+              aria-expanded="false"
             >
               <span className="sr-only">Open main menu</span>
+              {/* Hamburger icon */}
               <svg
                 className={`${isOpen ? 'hidden' : 'block'} h-6 w-6`}
                 xmlns="http://www.w3.org/2000/svg"
@@ -84,6 +113,7 @@ const Navbar: React.FC = () => {
                   d="M4 6h16M4 12h16M4 18h16"
                 />
               </svg>
+              {/* Close icon */}
               <svg
                 className={`${isOpen ? 'block' : 'hidden'} h-6 w-6`}
                 xmlns="http://www.w3.org/2000/svg"
@@ -104,58 +134,66 @@ const Navbar: React.FC = () => {
         </div>
       </div>
 
-      <div className={`${isOpen ? 'block' : 'hidden'} sm:hidden`}>
-        <div className="pt-2 pb-3 space-y-1">
-          <Link
-            to="/"
-            className="bg-white border-transparent text-gray-500 hover:bg-gray-50 hover:border-blue-500 hover:text-blue-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium"
-            onClick={() => setIsOpen(false)}
-          >
-            Home
-          </Link>
-          {isAuthenticated && authUser && (
+      {/* Mobile menu */}
+      <div className={`${isOpen ? 'block' : 'hidden'} md:hidden bg-white border-t border-gray-100 shadow-lg`}>
+        <div className="px-4 pt-4 pb-6 space-y-3">
+          {/* Navigation links */}
+          <div className="space-y-2">
             <Link
-              to="/dashboard"
-              className="bg-white border-transparent text-gray-500 hover:bg-gray-50 hover:border-blue-500 hover:text-blue-700 block pl-3 pr-4 py-2 border-l-4 text-base font-medium"
-              onClick={() => setIsOpen(false)}
+              to="/"
+              className="text-gray-600 hover:text-primary-600 hover:bg-gray-50 block px-3 py-3 rounded-lg text-base font-medium transition-all duration-200"
+              onClick={closeMobileMenu}
             >
-              Dashboard
+              Home
             </Link>
-          )}
-        </div>
-        <div className="pt-4 pb-3 border-t border-gray-200">
-          {isAuthenticated && authUser ? (
-            <div className="flex items-center px-4">
-              <div className="flex-shrink-0">
-                <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                  <span className="text-gray-600 text-xs font-medium">
-                    {authUser.email?.[0]?.toUpperCase() || 'U'}
-                  </span>
-                </div>
-              </div>
-              <div className="ml-3">
-                <div className="text-base font-medium text-gray-800">
-                  {authUser.email}
-                </div>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="ml-auto bg-white flex-shrink-0 p-1 rounded-full text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            {isAuthenticated && authUser && (
+              <Link
+                to="/dashboard"
+                className="text-gray-600 hover:text-primary-600 hover:bg-gray-50 block px-3 py-3 rounded-lg text-base font-medium transition-all duration-200"
+                onClick={closeMobileMenu}
               >
-                Sign out
-              </button>
-            </div>
-          ) : (
-            <div className="px-4">
+                Dashboard
+              </Link>
+            )}
+          </div>
+          
+          {/* Auth section */}
+          <div className="pt-4 border-t border-gray-100">
+            {isAuthenticated && authUser ? (
+              <div className="space-y-4">
+                {/* User info */}
+                <div className="flex items-center px-3 py-2 bg-gray-50 rounded-lg">
+                  <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-primary-700 text-sm font-semibold">
+                      {authUser.email?.[0]?.toUpperCase() || 'U'}
+                    </span>
+                  </div>
+                  <div className="ml-3 min-w-0 flex-1">
+                    <p className="text-sm font-medium text-gray-900 truncate">
+                      {authUser.email}
+                    </p>
+                    <p className="text-xs text-gray-500">Authenticated</p>
+                  </div>
+                </div>
+                
+                {/* Sign out button */}
+                <button
+                  onClick={handleLogout}
+                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-3 px-4 rounded-lg transition-all duration-200 text-center"
+                >
+                  Sign out
+                </button>
+              </div>
+            ) : (
               <Link
                 to="/login"
-                className="block text-center w-full bg-blue-600 border border-transparent rounded-md py-2 px-4 text-sm font-medium text-white hover:bg-blue-700"
-                onClick={() => setIsOpen(false)}
+                className="block w-full bg-primary-600 hover:bg-primary-700 text-white font-medium py-3 px-4 rounded-lg transition-all duration-200 text-center"
+                onClick={closeMobileMenu}
               >
                 Sign in
               </Link>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </nav>

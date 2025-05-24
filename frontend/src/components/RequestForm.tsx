@@ -162,8 +162,9 @@ const RequestForm: React.FC = () => {
 
   return (
     <div className="w-full">
+      {/* Authentication Info Banner */}
       {!isAuthenticated && (
-        <div className="mb-4 p-3 bg-blue-50 text-blue-700 border border-blue-100 rounded-md text-sm">
+        <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg sm:rounded-xl text-sm sm:text-base">
           <div className="flex items-start">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -171,8 +172,8 @@ const RequestForm: React.FC = () => {
               </svg>
             </div>
             <div className="ml-3">
-              <p>
-                <Link to="/login?returnUrl=/request" className="font-medium text-blue-700 underline">
+              <p className="leading-relaxed">
+                <Link to="/login?returnUrl=/request" className="font-medium text-blue-700 underline hover:text-blue-800 transition-colors">
                   Login or sign up
                 </Link> to save your email and easily manage your file requests.
               </p>
@@ -181,9 +182,9 @@ const RequestForm: React.FC = () => {
         </div>
       )}
 
-      {/* Authentication required warning */}
+      {/* Authentication Required Warning */}
       {showAuthRequired && (
-        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-100 rounded-lg">
+        <div className="mb-4 sm:mb-6 p-4 bg-yellow-50 border border-yellow-100 rounded-lg sm:rounded-xl">
           <div className="flex">
             <div className="flex-shrink-0">
               <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -196,7 +197,7 @@ const RequestForm: React.FC = () => {
                 <p>You must be logged in to create file request links.</p>
                 <button 
                   onClick={handleLoginRedirect}
-                  className="mt-2 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+                  className="mt-3 inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-yellow-600 hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500 transition-colors"
                 >
                   Sign in now
                 </button>
@@ -206,19 +207,22 @@ const RequestForm: React.FC = () => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} aria-label="Create file request form" noValidate className="space-y-5">
+      {/* Form */}
+      <form onSubmit={handleSubmit} aria-label="Create file request form" noValidate className="space-y-4 sm:space-y-6">
+        {/* Context Error */}
         {error && (
-          <div className="p-3 bg-red-50 text-red-600 border border-red-100 rounded-lg text-sm">
+          <div className="p-3 sm:p-4 bg-red-50 text-red-600 border border-red-100 rounded-lg sm:rounded-xl text-sm sm:text-base">
             {error}
           </div>
         )}
         
+        {/* Network Error */}
         {networkError && (
-          <div className="p-3 bg-red-50 text-red-600 border border-red-100 rounded-lg text-sm">
+          <div className="p-3 sm:p-4 bg-red-50 text-red-600 border border-red-100 rounded-lg sm:rounded-xl text-sm sm:text-base">
             {networkError}
             <button 
               type="button" 
-              className="ml-2 text-red-800 font-medium"
+              className="ml-2 text-red-800 font-medium hover:text-red-900 transition-colors"
               onClick={() => setNetworkError(null)}
             >
               Dismiss
@@ -226,8 +230,9 @@ const RequestForm: React.FC = () => {
           </div>
         )}
         
+        {/* Email Field */}
         <div>
-          <label htmlFor="recipientEmail" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="recipientEmail" className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
             Your Email <span className="text-red-500">*</span>
           </label>
           <input
@@ -236,10 +241,10 @@ const RequestForm: React.FC = () => {
             name="recipientEmail"
             value={formData.recipientEmail}
             onChange={handleChange}
-            className={`w-full px-3 py-2 bg-white border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
+            className={`form-input w-full px-3 sm:px-4 py-2 sm:py-3 bg-white border rounded-lg sm:rounded-xl focus:ring-2 focus:outline-none transition-all duration-200 text-sm sm:text-base ${
               validationErrors.recipientEmail 
                 ? 'border-red-300 text-red-600 focus:ring-red-100 focus:border-red-400' 
-                : 'border-gray-300 focus:ring-blue-100 focus:border-blue-400'
+                : 'border-gray-300 focus:ring-primary-100 focus:border-primary-400'
             }`}
             placeholder="email@example.com"
             aria-invalid={!!validationErrors.recipientEmail}
@@ -247,14 +252,15 @@ const RequestForm: React.FC = () => {
             required
           />
           {validationErrors.recipientEmail && (
-            <p id="email-error" className="mt-1 text-sm text-red-600" role="alert">
+            <p id="email-error" className="mt-2 text-sm text-red-600" role="alert">
               {validationErrors.recipientEmail}
             </p>
           )}
         </div>
         
+        {/* Description Field */}
         <div>
-          <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="description" className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
             Description <span className="text-red-500">*</span>
           </label>
           <textarea
@@ -262,11 +268,11 @@ const RequestForm: React.FC = () => {
             name="description"
             value={formData.description}
             onChange={handleChange}
-            rows={3}
-            className={`w-full px-3 py-2 bg-white border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
+            rows={4}
+            className={`form-textarea w-full px-3 sm:px-4 py-2 sm:py-3 bg-white border rounded-lg sm:rounded-xl focus:ring-2 focus:outline-none transition-all duration-200 text-sm sm:text-base resize-none ${
               validationErrors.description 
                 ? 'border-red-300 text-red-600 focus:ring-red-100 focus:border-red-400' 
-                : 'border-gray-300 focus:ring-blue-100 focus:border-blue-400'
+                : 'border-gray-300 focus:ring-primary-100 focus:border-primary-400'
             }`}
             placeholder="Please upload the files I need..."
             aria-invalid={!!validationErrors.description}
@@ -275,19 +281,20 @@ const RequestForm: React.FC = () => {
             maxLength={500}
           />
           {validationErrors.description && (
-            <p id="desc-error" className="mt-1 text-sm text-red-600" role="alert">
+            <p id="desc-error" className="mt-2 text-sm text-red-600" role="alert">
               {validationErrors.description}
             </p>
           )}
-          <div className="flex justify-between items-center mt-1">
-            <p className="text-xs text-gray-500">Be specific about what files you need and why.</p>
-            <p className="text-xs text-gray-400">{formData.description.length}/500</p>
+          <div className="flex justify-between items-center mt-2">
+            <p className="text-xs sm:text-sm text-gray-500">Be specific about what files you need and why.</p>
+            <p className="text-xs sm:text-sm text-gray-400">{formData.description.length}/500</p>
           </div>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Deadline and Expiry Fields */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           <div>
-            <label htmlFor="deadline" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="deadline" className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
               Deadline (Optional)
             </label>
             <input
@@ -296,24 +303,24 @@ const RequestForm: React.FC = () => {
               name="deadline"
               value={formData.deadline}
               onChange={handleChange}
-              className={`w-full px-3 py-2 bg-white border rounded-lg focus:ring-2 focus:outline-none transition-colors ${
+              className={`form-input w-full px-3 sm:px-4 py-2 sm:py-3 bg-white border rounded-lg sm:rounded-xl focus:ring-2 focus:outline-none transition-all duration-200 text-sm sm:text-base ${
                 validationErrors.deadline 
                   ? 'border-red-300 text-red-600 focus:ring-red-100 focus:border-red-400' 
-                  : 'border-gray-300 focus:ring-blue-100 focus:border-blue-400'
+                  : 'border-gray-300 focus:ring-primary-100 focus:border-primary-400'
               }`}
               aria-invalid={!!validationErrors.deadline}
               aria-describedby={validationErrors.deadline ? "deadline-error" : undefined}
               min={new Date().toISOString().split('T')[0]} // Set min to today's date
             />
             {validationErrors.deadline && (
-              <p id="deadline-error" className="mt-1 text-sm text-red-600" role="alert">
+              <p id="deadline-error" className="mt-2 text-sm text-red-600" role="alert">
                 {validationErrors.deadline}
               </p>
             )}
           </div>
           
           <div>
-            <label htmlFor="expiry_days" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="expiry_days" className="block text-sm sm:text-base font-medium text-gray-700 mb-2">
               Link Expires After
             </label>
             <select
@@ -321,7 +328,7 @@ const RequestForm: React.FC = () => {
               name="expiry_days"
               value={formData.expiry_days}
               onChange={handleChange}
-              className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-100 focus:border-blue-400 focus:outline-none transition-colors"
+              className="form-select w-full px-3 sm:px-4 py-2 sm:py-3 bg-white border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-primary-100 focus:border-primary-400 focus:outline-none transition-all duration-200 text-sm sm:text-base"
             >
               <option value={1}>1 day</option>
               <option value={3}>3 days</option>
@@ -329,25 +336,26 @@ const RequestForm: React.FC = () => {
               <option value={14}>14 days</option>
               <option value={30}>30 days</option>
             </select>
-            <p className="text-xs text-gray-500 mt-1">For security, links automatically expire.</p>
+            <p className="text-xs sm:text-sm text-gray-500 mt-2">For security, links automatically expire.</p>
           </div>
         </div>
         
+        {/* Submit Button */}
         <button
           type="submit"
           disabled={isSubmitting}
-          className={`w-full py-3 mt-2 rounded-lg font-medium transition-all duration-200 ${
+          className={`w-full py-3 sm:py-4 mt-4 sm:mt-6 rounded-lg sm:rounded-xl font-medium text-sm sm:text-base transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
             isSubmitting 
-              ? 'bg-blue-400 text-white cursor-not-allowed' 
+              ? 'bg-primary-400 text-white cursor-not-allowed' 
               : isAuthenticated 
-                ? 'bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg active:bg-blue-800'
+                ? 'bg-primary-600 text-white hover:bg-primary-700 hover:shadow-lg active:bg-primary-800 focus:ring-primary-500'
                 : 'bg-gray-300 text-gray-600 cursor-not-allowed'
           }`}
           aria-busy={isSubmitting}
         >
           {isSubmitting ? (
             <span className="flex items-center justify-center">
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 sm:h-5 sm:w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
