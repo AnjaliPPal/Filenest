@@ -1,4 +1,4 @@
-# FileNest - Simple Client File Request & Collection Tool
+# Filenest# FileNest - Simple Client File Request & Collection Tool
 
 FileNest is a modern, user-friendly tool that allows professionals to request, collect, and organize files from clients via a secure, shareable link - without logins, email chaos, or confusing portals.
 
