@@ -87,19 +87,25 @@ export const usePrefersDarkMode = () => useMediaQuery(deviceQueries.darkMode);
 // Screen size hook that returns current breakpoint
 export const useScreenSize = () => {
   const isXs = useMediaQuery(maxBreakpoints.xs);
-  const isSm = useMediaQuery(breakpoints.sm) && useMediaQuery(maxBreakpoints.sm);
-  const isMd = useMediaQuery(breakpoints.md) && useMediaQuery(maxBreakpoints.md);
-  const isLg = useMediaQuery(breakpoints.lg) && useMediaQuery(maxBreakpoints.lg);
-  const isXl = useMediaQuery(breakpoints.xl) && useMediaQuery(maxBreakpoints.xl);
-  const is2xl = useMediaQuery(breakpoints['2xl']) && useMediaQuery(maxBreakpoints['2xl']);
+  const isSmMin = useMediaQuery(breakpoints.sm);
+  const isSmMax = useMediaQuery(maxBreakpoints.sm);
+  const isMdMin = useMediaQuery(breakpoints.md);
+  const isMdMax = useMediaQuery(maxBreakpoints.md);
+  const isLgMin = useMediaQuery(breakpoints.lg);
+  const isLgMax = useMediaQuery(maxBreakpoints.lg);
+  const isXlMin = useMediaQuery(breakpoints.xl);
+  const isXlMax = useMediaQuery(maxBreakpoints.xl);
+  const is2xlMin = useMediaQuery(breakpoints['2xl']);
+  const is2xlMax = useMediaQuery(maxBreakpoints['2xl']);
   const is3xl = useMediaQuery(breakpoints['3xl']);
 
+  // Determine the current breakpoint based on the results
   if (isXs) return 'xs';
-  if (isSm) return 'sm';
-  if (isMd) return 'md';
-  if (isLg) return 'lg';
-  if (isXl) return 'xl';
-  if (is2xl) return '2xl';
+  if (isSmMin && isSmMax) return 'sm';
+  if (isMdMin && isMdMax) return 'md';
+  if (isLgMin && isLgMax) return 'lg';
+  if (isXlMin && isXlMax) return 'xl';
+  if (is2xlMin && is2xlMax) return '2xl';
   if (is3xl) return '3xl';
   return 'xs'; // fallback
 };
