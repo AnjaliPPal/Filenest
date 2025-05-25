@@ -24,7 +24,7 @@ dotenv.config();
 
 // Create Express app
 const app = express();
-const PORT = 3001; // Fixed port to match frontend expectations
+const PORT = process.env.PORT || 3001; // Fixed port to match frontend expectations
 
 // CORS must come before other middleware
 app.use(corsMiddleware);
