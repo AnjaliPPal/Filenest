@@ -234,7 +234,7 @@ const UploadPage: React.FC = () => {
         formData.append('file', file);
         
         const uploadResponse = await axios.post(
-          `${API_BASE_URL}/uploads/${requestId}`,
+          `${API_BASE_URL}/files/${requestId}`,
           formData,
           {
             headers: {

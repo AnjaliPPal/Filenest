@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { supabase } from '../config/supabase';
 // Unified email service is now used
 import { sendUploadNotification } from '../utils/emailService';
+import { logger } from '../utils/logger';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import archiver from 'archiver';
@@ -12,7 +13,7 @@ import { getSubscriptionLimits } from './subscriptionController';
 // Upload file to a request
 export const uploadFile = async (req: Request, res: Response): Promise<void> => {
   try {
-    console.log('Upload file request received', req.params, req.file ? 'with file' : (req.files ? `with ${(req.files as Express.Multer.File[]).length} files` : 'without file'));
+    logger.info(`Upload file request received for requestId: ${req.params.requestId}`);
     const { requestId } = req.params;
     
     // Handle both single file and array of files
@@ -45,12 +46,12 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
         request = result.data;
         requestError = result.error;
       } catch (err) {
-        console.error('Error fetching request by ID:', err);
+        logger.error('Error fetching request by ID:', err);
       }
     }
 
     if (requestError || !request) {
-      console.error('Request not found:', requestError);
+      logger.error('Request not found:', requestError);
       res.status(404).json({ error: 'File request not found or expired' });
       return;
     }
@@ -126,7 +127,7 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
       const fileName = `${uuidv4()}${fileExtension}`;
       const storagePath = `uploads/${request.id}/${fileName}`;
 
-      console.log('Uploading to storage path:', storagePath);
+      logger.info(`Uploading file to storage path: ${storagePath}`);
       
       try {
         const { error: storageError } = await supabase.storage
@@ -137,12 +138,12 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
           });
 
         if (storageError) {
-          console.error('Storage error:', storageError);
+          logger.error('Storage error:', storageError);
           res.status(500).json({ error: 'Failed to upload file to storage: ' + storageError.message });
           return;
         }
       } catch (storageErr) {
-        console.error('Storage exception:', storageErr);
+        logger.error('Storage exception:', storageErr);
         res.status(500).json({ error: 'Storage exception: ' + (storageErr instanceof Error ? storageErr.message : String(storageErr)) });
         return;
       }
@@ -161,7 +162,7 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
           .single();
 
         if (fileError) {
-          console.error('Database error:', fileError);
+          logger.error('Database error:', fileError);
           res.status(500).json({ error: 'Failed to record file in database: ' + fileError.message });
           return;
         }
@@ -184,7 +185,7 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
               request.id
             );
           } catch (emailErr) {
-            console.error('Failed to send email notifications:', emailErr);
+            logger.error('Failed to send email notifications:', emailErr);
             // Continue even if email fails
           }
         }
@@ -199,7 +200,7 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
           }
         });
       } catch (dbErr) {
-        console.error('Database exception:', dbErr);
+        logger.error('Database exception:', dbErr);
         res.status(500).json({ error: 'Database exception: ' + (dbErr instanceof Error ? dbErr.message : String(dbErr)) });
       }
     } 
@@ -222,7 +223,7 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
             });
 
           if (storageError) {
-            console.error('Storage error:', storageError);
+            logger.error('Storage error:', storageError);
             uploadResults.push({
               originalFilename: file.originalname,
               success: false,
@@ -245,7 +246,7 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
             .single();
             
           if (fileError) {
-            console.error('Database error:', fileError);
+            logger.error('Database error:', fileError);
             uploadResults.push({
               originalFilename: file.originalname,
               success: false,
@@ -260,7 +261,7 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
             uploadedFiles.push(fileData);
           }
         } catch (err) {
-          console.error('Error processing file:', file.originalname, err);
+          logger.error(`Error processing file ${file.originalname}:`, err);
           uploadResults.push({
             originalFilename: file.originalname,
             success: false,
@@ -287,11 +288,11 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
               .eq('id', request.user_id);
               
             if (userUpdateError) {
-              console.error('Error updating user:', userUpdateError);
+              logger.error('Error updating user:', userUpdateError);
             }
           }
         } catch (updateError) {
-          console.error('Error updating request status or user:', updateError);
+          logger.error('Error updating request status or user:', updateError);
         }
         
         // Send email notification after successful batch upload
@@ -304,7 +305,7 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
               request.id
             );
           } catch (emailErr) {
-            console.error('Failed to send email notification:', emailErr);
+            logger.error('Failed to send email notification:', emailErr);
             // Continue even if email fails
           }
         }
@@ -316,7 +317,7 @@ export const uploadFile = async (req: Request, res: Response): Promise<void> => 
       });
     }
   } catch (error) {
-    console.error('Upload file error:', error);
+    logger.error('Upload file error:', error);
     res.status(500).json({ error: 'Internal server error: ' + (error instanceof Error ? error.message : String(error)) });
   }
 };
@@ -344,7 +345,7 @@ export const getRequestFiles = async (req: Request, res: Response): Promise<void
 
     res.status(200).json(files);
   } catch (error) {
-    console.error('Get request files error:', error);
+    logger.error('Get request files error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -382,7 +383,7 @@ export const downloadFile = async (req: Request, res: Response): Promise<void> =
 
     res.status(200).json({ download_url: signedURL.signedUrl });
   } catch (error) {
-    console.error('Download file error:', error);
+    logger.error('Download file error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -422,7 +423,7 @@ export const downloadAllFiles = async (req: Request, res: Response): Promise<voi
 
     res.status(200).json(downloadURLs);
   } catch (error) {
-    console.error('Download all files error:', error);
+    logger.error('Download all files error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -485,7 +486,7 @@ export const downloadZipFile = async (req: Request, res: Response): Promise<void
           .download(file.storage_path);
 
         if (downloadError || !data) {
-          console.error(`Error downloading file ${file.id}:`, downloadError);
+          logger.error(`Error downloading file ${file.id}:`, downloadError);
           continue; // Skip this file but continue with others
         }
 
@@ -496,7 +497,7 @@ export const downloadZipFile = async (req: Request, res: Response): Promise<void
         // Add file to ZIP with its original filename
         archive.append(fileBuffer, { name: file.filename });
       } catch (fileError) {
-        console.error(`Error processing file ${file.id}:`, fileError);
+        logger.error(`Error processing file ${file.id}:`, fileError);
         // Continue with other files
       }
     }
@@ -504,7 +505,7 @@ export const downloadZipFile = async (req: Request, res: Response): Promise<void
     // Finalize the archive and wait for completion
     await archive.finalize();
   } catch (error) {
-    console.error('Download ZIP file error:', error);
+    logger.error('Download ZIP file error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

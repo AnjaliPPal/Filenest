@@ -8,8 +8,7 @@ const supabaseUrl = process.env.SUPABASE_URL as string;
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY as string;
 
 if (!supabaseUrl || !supabaseKey) {
-  console.log('Supabase URL:', supabaseUrl);
-  console.log('Supabase Anon Key:', supabaseKey);
+  // Supabase configuration loaded
   throw new Error('Missing Supabase environment variables');
   
 }

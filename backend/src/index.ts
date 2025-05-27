@@ -23,19 +23,16 @@ import { DbIntegrityService } from './services/dbIntegrityService';
 dotenv.config();
 
 // Debug environment loading
-console.log("Environment variables loaded:");
-console.log("process.env.PORT:", process.env.PORT);
-console.log("NODE_ENV:", process.env.NODE_ENV);
+logger.info("Environment variables loaded");
+logger.info(`PORT: ${process.env.PORT}`);
+logger.info(`NODE_ENV: ${process.env.NODE_ENV}`);
 
 // Create Express app
 const app = express();
 
-// Better port handling with explicit precedence
-// In development: prefer .env file, fallback to 3001
-// In production: use platform-assigned PORT, fallback to 8080
-const PORT = process.env.PORT || 3001; 
-console.log("Backend port:-----------", PORT);
-console.log("Environment:", process.env.NODE_ENV);
+const PORT =  3001; 
+logger.info(`Backend port: ${PORT}`);
+logger.info(`Environment: ${process.env.NODE_ENV}`);
 
 // CORS must come before other middleware
 app.use(corsMiddleware);
@@ -65,8 +62,34 @@ app.use('/api/subscriptions', subscriptionRoutes);
 app.use('/api/gdpr', gdprRoutes);
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+app.get('/health', async (req, res) => {
+  try {
+    // Test database connection
+    const { data, error } = await supabase
+      .from('users')
+      .select('count')
+      .limit(1)
+      .single();
+    
+    const healthStatus = {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV,
+      database: error ? 'error' : 'connected',
+      uptime: process.uptime(),
+      memory: process.memoryUsage(),
+      version: '1.0.0'
+    };
+    
+    res.status(200).json(healthStatus);
+  } catch (error) {
+    logger.error('Health check failed:', error);
+    res.status(503).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      error: 'Service temporarily unavailable'
+    });
+  }
 });
 
 // Privacy policy endpoint
@@ -155,7 +178,7 @@ startServer();
 
 // Error handling for unhandled rejections and exceptions
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  logger.error('Unhandled Rejection at:', { promise, reason });
 });
 
 process.on('uncaughtException', (error) => {

@@ -2,18 +2,34 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "Backend for Simple Client File Request & Collection Tool",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
-    "dev": "nodemon --exec ts-node src/index.ts",
-    "build": "tsc",
+    "start:prod": "cross-env NODE_ENV=production node dist/index.js",
+    "dev": "cross-env NODE_ENV=development nodemon --exec ts-node src/index.ts",
+    "dev:prod": "cross-env NODE_ENV=production nodemon --exec ts-node src/index.ts",
+    "dev:win": "set NODE_ENV=development && nodemon --exec ts-node src/index.ts",
+    "dev:unix": "NODE_ENV=development nodemon --exec ts-node src/index.ts",
+    "build": "tsc && npm run copy-assets",
+    "build:prod": "cross-env NODE_ENV=production tsc && npm run copy-assets",
+    "copy-assets": "cp -r src/assets dist/ 2>/dev/null || true",
     "test": "jest",
     "migrate": "ts-node src/scripts/runMigrations.ts",
-    "fix-db": "ts-node src/scripts/fixDatabase.ts"
+    "fix-db": "ts-node src/scripts/fixDatabase.ts",
+    "railway:build": "npm run build:prod",
+    "railway:start": "npm run start:prod",
+    "env:dev": "cp .env.development .env",
+    "env:prod": "cp .env.production .env",
+    "env:dev:win": "copy .env.development .env",
+    "env:prod:win": "copy .env.production .env"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
   "dependencies": {
     "@sendgrid/mail": "^7.7.0",
     "@supabase/supabase-js": "^2.49.4",
@@ -22,6 +38,7 @@
     "bcrypt": "^6.0.0",
     "compression": "^1.8.0",
     "cors": "^2.8.5",
+    "cross-env": "^7.0.3",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "express-rate-limit": "^7.5.0",
@@ -35,7 +52,8 @@
     "nodemailer": "^7.0.3",
     "razorpay": "^2.9.6",
     "stripe": "^18.1.0",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "typescript": "^5.8.3"
   },
   "devDependencies": {
     "@types/archiver": "^6.0.3",
@@ -47,7 +65,6 @@
     "@types/multer": "^1.4.12",
     "@types/nodemailer": "^6.4.17",
     "nodemon": "^3.1.10",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "ts-node": "^10.9.2"
   }
 }

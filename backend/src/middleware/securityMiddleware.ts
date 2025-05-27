@@ -7,14 +7,20 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Configure CORS
+// Configure CORS - Dynamic based on environment
 export const corsMiddleware = cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:3002',
-    'https://file-nest.vercel.app',
-    process.env.FRONTEND_URL || ''
-  ].filter(Boolean),
+  origin: process.env.NODE_ENV === 'production' 
+    ? [
+        'https://filenest.app',
+        'https://www.filenest.app',
+        process.env.FRONTEND_URL || ''
+      ].filter(Boolean)
+    : [
+        'http://localhost:3000',
+        'http://localhost:3002',
+        'http://127.0.0.1:3000',
+        process.env.FRONTEND_URL || ''
+      ].filter(Boolean),
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
@@ -24,32 +30,54 @@ export const corsMiddleware = cors({
   optionsSuccessStatus: 204
 });
 
-// Configure rate limiting
+// Configure rate limiting - more strict for production
 export const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes
+  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
   standardHeaders: true,
   legacyHeaders: false,
   message: {
     error: 'Too many requests, please try again later.'
-  }
+  },
+  skipSuccessfulRequests: false,
+  skipFailedRequests: false
 });
 
-// Configure security headers
+// Configure security headers - stricter for production
 export const securityHeaders = helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      connectSrc: ["'self'", "ws:", "wss:", "http://localhost:3000", "http://localhost:3001"],
-      frameSrc: ["'self'"],
+      connectSrc: ["'self'", "wss:", "https://uqjlcpdltjvljwisxmpn.supabase.co", "https://file-nest.vercel.app"],
+      frameSrc: ["'none'"],
       imgSrc: ["'self'", "data:", "https:"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      scriptSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      fontSrc: ["'self'", "https:", "data:"],
+      manifestSrc: ["'self'"],
+      mediaSrc: ["'self'"],
+      workerSrc: ["'none'"]
     },
   },
   crossOriginEmbedderPolicy: false,
-  crossOriginOpenerPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" }
+  crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  dnsPrefetchControl: { allow: false },
+  frameguard: { action: 'deny' },
+  hidePoweredBy: true,
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  ieNoOpen: true,
+  noSniff: true,
+  originAgentCluster: true,
+  permittedCrossDomainPolicies: false,
+  referrerPolicy: { policy: ["no-referrer"] },
+  xssFilter: true
 });
 
 // Validation middleware factory
