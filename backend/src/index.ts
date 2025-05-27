@@ -30,7 +30,7 @@ logger.info(`NODE_ENV: ${process.env.NODE_ENV}`);
 // Create Express app
 const app = express();
 
-const PORT =  3001; 
+const PORT = process.env.PORT || 3001; 
 logger.info(`Backend port: ${PORT}`);
 logger.info(`Environment: ${process.env.NODE_ENV}`);
 
