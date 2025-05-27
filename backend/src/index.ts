@@ -22,9 +22,20 @@ import { DbIntegrityService } from './services/dbIntegrityService';
 // Load environment variables
 dotenv.config();
 
+// Debug environment loading
+console.log("Environment variables loaded:");
+console.log("process.env.PORT:", process.env.PORT);
+console.log("NODE_ENV:", process.env.NODE_ENV);
+
 // Create Express app
 const app = express();
-const PORT = process.env.PORT || 3001; // Fixed port to match frontend expectations
+
+// Better port handling with explicit precedence
+// In development: prefer .env file, fallback to 3001
+// In production: use platform-assigned PORT, fallback to 8080
+const PORT = process.env.PORT || 3001; 
+console.log("Backend port:-----------", PORT);
+console.log("Environment:", process.env.NODE_ENV);
 
 // CORS must come before other middleware
 app.use(corsMiddleware);

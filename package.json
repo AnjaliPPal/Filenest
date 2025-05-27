@@ -2,17 +2,17 @@
   "name": "file-request-tool",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "frontend",
-    "backend"
-  ],
+  
   "scripts": {
     "start:frontend": "cd frontend && npm start",
     "start:backend": "cd backend && npm run dev",
-    "start": "node cleanup.js && concurrently \"npm run start:backend\" \"npm run start:frontend\"",
+    "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
     "build": "cd frontend && npm run build && cd ../backend && npm run build",
-    "cleanup": "node cleanup.js",
-    "cleanup:full": "node cleanup.js --full"
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "install:frontend": "cd frontend && npm install",
+    "install:backend": "cd backend && npm install",
+    "install:all": "npm run install:frontend && npm run install:backend"
   },
   "devDependencies": {
     "concurrently": "^8.0.1"

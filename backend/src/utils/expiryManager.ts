@@ -91,7 +91,7 @@ export const handleExpiredRequests = async (): Promise<void> => {
       // Mark requests as inactive
       const { error: updateError } = await supabase
         .from('file_requests')
-        .update({ is_active: false, expired_at: new Date().toISOString() })
+        .update({ is_active: false })
         .in('id', expiredRequestIds);
         
       if (updateError) {

@@ -19,7 +19,9 @@ export const corsMiddleware = cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
   credentials: true,
-  maxAge: 86400 // 24 hours
+  maxAge: 86400, // 24 hours
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 });
 
 // Configure rate limiting
@@ -35,8 +37,19 @@ export const apiLimiter = rateLimit({
 
 // Configure security headers
 export const securityHeaders = helmet({
-  contentSecurityPolicy: false, // Disabled for development
-  crossOriginEmbedderPolicy: false, // Disabled for development
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      connectSrc: ["'self'", "ws:", "wss:", "http://localhost:3000", "http://localhost:3001"],
+      frameSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+    },
+  },
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 });
 
 // Validation middleware factory
