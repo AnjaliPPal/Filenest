@@ -119,7 +119,7 @@ Thumbs.db
 .firebase/
 firebase-debug.log
 firebase-debug.*.log
-
+DEPLOYMENT_GUIDE.md
 # Vercel
 .vercel
 

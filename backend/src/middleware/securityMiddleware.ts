@@ -48,7 +48,7 @@ export const securityHeaders = helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      connectSrc: ["'self'", "wss:", "https://uqjlcpdltjvljwisxmpn.supabase.co", "https://file-nest.vercel.app"],
+      connectSrc: ["'self'", "wss:", "https://uqjlcpdltjvljwisxmpn.supabase.co", "https://filenest.app", "https://www.filenest.app"],
       frameSrc: ["'none'"],
       imgSrc: ["'self'", "data:", "https:"],
       scriptSrc: ["'self'"],
